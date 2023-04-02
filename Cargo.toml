@@ -1,0 +1,9 @@
+[package]
+name = "prx-encrypter"
+authors = ["gmnp"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = "4.0.19"
+deflate = "1.0.0"
