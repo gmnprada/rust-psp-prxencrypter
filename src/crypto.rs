@@ -739,7 +739,7 @@ pub fn rijndael_key_setup_dec(rk: &mut [u32], cipher_key: &[u8], key_bits: usize
 }
 
 
-pub fn rijndael_encrypt(rk: &[u32], nr: usize, ct: & [u8; 16],pt: &mut[u8; 16]) {
+pub fn rijndael_encrypt(rk: &[u32], nr: usize, pt: & [u8; 16],ct: &mut[u8; 16]) {
     let mut s0: u32;
     let mut s1: u32;
     let mut s2: u32;
@@ -869,18 +869,18 @@ pub fn rijndael_encrypt(rk: &[u32], nr: usize, ct: & [u8; 16],pt: &mut[u8; 16]) 
     }
 
     s0 = (TE4[(t0 >> 24)] & 0xff000000) ^ (TE4[(t1 >> 16) & 0xff] & 0x00ff0000) ^ (TE4[(t2 >>  8) & 0xff] & 0x0000ff00) ^ (TE4[(t3) & 0xff] & 0x000000ff) ^ rk[0];
-    put_u32(&mut pt[0..4], s0);
+    put_u32(&mut ct[0..4], s0);
 
     s1 =(TE4[(t1 >> 24)] & 0xff000000) ^ (TE4[(t2 >> 16) & 0xff] & 0x00ff0000) ^ (TE4[(t3 >>  8) & 0xff] & 0x0000ff00) ^ (TE4[(t0) & 0xff] & 0x000000ff) ^ rk[1];
 
-    put_u32(&mut pt[4..8], s1);
+    put_u32(&mut ct[4..8], s1);
 
     s2 = (TE4[(t2 >> 24)] & 0xff000000) ^ (TE4[(t3 >> 16) & 0xff] & 0x00ff0000) ^ (TE4[(t0 >>  8) & 0xff] & 0x0000ff00) ^ (TE4[(t1) & 0xff] & 0x000000ff) ^ rk[2];
 
-    putu_u32(&mut pt[8..12], s2);
+    putu_u32(&mut ct[8..12], s2);
     
-    s3 = (TE4[(t3 >> 24)       ] & 0xff000000) ^ (TE4[(t0 >> 16) & 0xff] & 0x00ff0000) ^ (TE4[(t1 >>  8) & 0xff] & 0x0000ff00) ^ (TE4[(t2) & 0xff] & 0x000000ff) ^ rk[3];
-    putu_u32(&mut pt[12..16], s3);
+    s3 = (TE4[(t3 >> 24)] & 0xff000000) ^ (TE4[(t0 >> 16) & 0xff] & 0x00ff0000) ^ (TE4[(t1 >>  8) & 0xff] & 0x0000ff00) ^ (TE4[(t2) & 0xff] & 0x000000ff) ^ rk[3];
+    putu_u32(&mut ct[12..16], s3);
 
 
 }
