@@ -1,5 +1,5 @@
 /*	$OpenBSD: rijndael.c,v 1.19 2008/06/09 07:49:45 djm Exp $ */
-// To rust port for prx encrypter (Signed binary To PSP )
+// To rust port for prx encrypter (Signed Eboot To PSP )
 use core::ffi::c_int;
 
 // crypto.h
@@ -896,6 +896,132 @@ pub fn rijndael_decrypt(rk: &[u32], nr: usize, ct: &[u8; 16], pt: &mut [u8; 16])
     let mut t3: u32;
 
     #[cfg(not(FULL_UNROLL))]
+    let mut r: i32;
+
+    s0 = get_u32(&ct[0..4]) ^ rk[0];
+    s1 = get_u32(&ct[4..8]) ^ rk[1];
+    s2 = get_u32(&ct[8..12]) ^ rk[2];
+    s3 = get_u32(&ct[12..16]) ^ rk[3];
+
+    #[cfg(FULL_UNROLL)]
+    {
+        /* round 1: */
+        t0 = TD0[s0 >> 24] ^ TD1[(s3 >> 16) & 0xff] ^ TD2[(s2 >> 8) & 0xff] ^ TD3[s1 & 0xff] ^ rk[4];
+        t1 = TD0[s1 >> 24] ^ TD1[(s0 >> 16) & 0xff] ^ TD2[(s3 >> 8) & 0xff] ^ TD3[s2 & 0xff] ^ rk[5];
+        t2 = TD0[s2 >> 24] ^ TD1[(s1 >> 16) & 0xff] ^ TD2[(s0 >> 8) & 0xff] ^ TD3[s3 & 0xff] ^ rk[6];
+        t3 = TD0[s3 >> 24] ^ TD1[(s2 >> 16) & 0xff] ^ TD2[(s1 >> 8) & 0xff] ^ TD3[s0 & 0xff] ^ rk[7];
+        /* round 2: */
+        s0 = TD0[t0 >> 24] ^ TD1[(t3 >> 16) & 0xff] ^ TD2[(t2 >> 8) & 0xff] ^ TD3[t1 & 0xff] ^ rk[8];
+        s1 = TD0[t1 >> 24] ^ TD1[(t0 >> 16) & 0xff] ^ TD2[(t3 >> 8) & 0xff] ^ TD3[t2 & 0xff] ^ rk[9];
+        s2 = TD0[t2 >> 24] ^ TD1[(t1 >> 16) & 0xff] ^ TD2[(t0 >> 8) & 0xff] ^ TD3[t3 & 0xff] ^ rk[10];
+        s3 = TD0[t3 >> 24] ^ TD1[(t2 >> 16) & 0xff] ^ TD2[(t1 >> 8) & 0xff] ^ TD3[t0 & 0xff] ^ rk[11];
+        /* round 3: */
+        t0 = TD0[s0 >> 24] ^ TD1[(s3 >> 16) & 0xff] ^ TD2[(s2 >> 8) & 0xff] ^ TD3[s1 & 0xff] ^ rk[12];
+        t1 = TD0[s1 >> 24] ^ TD1[(s0 >> 16) & 0xff] ^ TD2[(s3 >> 8) & 0xff] ^ TD3[s2 & 0xff] ^ rk[13];
+        t2 = TD0[s2 >> 24] ^ TD1[(s1 >> 16) & 0xff] ^ TD2[(s0 >> 8) & 0xff] ^ TD3[s3 & 0xff] ^ rk[14];
+        t3 = TD0[s3 >> 24] ^ TD1[(s2 >> 16) & 0xff] ^ TD2[(s1 >> 8) & 0xff] ^ TD3[s0 & 0xff] ^ rk[15];
+        /* round 4: */
+        s0 = TD0[t0 >> 24] ^ TD1[(t3 >> 16) & 0xff] ^ TD2[(t2 >> 8) & 0xff] ^ TD3[t1 & 0xff] ^ rk[16];
+        s1 = TD0[t1 >> 24] ^ TD1[(t0 >> 16) & 0xff] ^ TD2[(t3 >> 8) & 0xff] ^ TD3[t2 & 0xff] ^ rk[17];
+        s2 = TD0[t2 >> 24] ^ TD1[(t1 >> 16) & 0xff] ^ TD2[(t0 >> 8) & 0xff] ^ TD3[t3 & 0xff] ^ rk[18];
+        s3 = TD0[t3 >> 24] ^ TD1[(t2 >> 16) & 0xff] ^ TD2[(t1 >> 8) & 0xff] ^ TD3[t0 & 0xff] ^ rk[19];
+        /* round 5: */
+        t0 = TD0[s0 >> 24] ^ TD1[(s3 >> 16) & 0xff] ^ TD2[(s2 >> 8) & 0xff] ^ TD3[s1 & 0xff] ^ rk[20];
+        t1 = TD0[s1 >> 24] ^ TD1[(s0 >> 16) & 0xff] ^ TD2[(s3 >> 8) & 0xff] ^ TD3[s2 & 0xff] ^ rk[21];
+        t2 = TD0[s2 >> 24] ^ TD1[(s1 >> 16) & 0xff] ^ TD2[(s0 >> 8) & 0xff] ^ TD3[s3 & 0xff] ^ rk[22];
+        t3 = TD0[s3 >> 24] ^ TD1[(s2 >> 16) & 0xff] ^ TD2[(s1 >> 8) & 0xff] ^ TD3[s0 & 0xff] ^ rk[23];
+        /* round 6: */
+        s0 = TD0[t0 >> 24] ^ TD1[(t3 >> 16) & 0xff] ^ TD2[(t2 >> 8) & 0xff] ^ TD3[t1 & 0xff] ^ rk[24];
+        s1 = TD0[t1 >> 24] ^ TD1[(t0 >> 16) & 0xff] ^ TD2[(t3 >> 8) & 0xff] ^ TD3[t2 & 0xff] ^ rk[25];
+        s2 = TD0[t2 >> 24] ^ TD1[(t1 >> 16) & 0xff] ^ TD2[(t0 >> 8) & 0xff] ^ TD3[t3 & 0xff] ^ rk[26];
+        s3 = TD0[t3 >> 24] ^ TD1[(t2 >> 16) & 0xff] ^ TD2[(t1 >> 8) & 0xff] ^ TD3[t0 & 0xff] ^ rk[27];
+        /* round 7: */
+        t0 = TD0[s0 >> 24] ^ TD1[(s3 >> 16) & 0xff] ^ TD2[(s2 >> 8) & 0xff] ^ TD3[s1 & 0xff] ^ rk[28];
+        t1 = TD0[s1 >> 24] ^ TD1[(s0 >> 16) & 0xff] ^ TD2[(s3 >> 8) & 0xff] ^ TD3[s2 & 0xff] ^ rk[29];
+        t2 = TD0[s2 >> 24] ^ TD1[(s1 >> 16) & 0xff] ^ TD2[(s0 >> 8) & 0xff] ^ TD3[s3 & 0xff] ^ rk[30];
+        t3 = TD0[s3 >> 24] ^ TD1[(s2 >> 16) & 0xff] ^ TD2[(s1 >> 8) & 0xff] ^ TD3[s0 & 0xff] ^ rk[31];
+        /* round 8: */
+        s0 = TD0[t0 >> 24] ^ TD1[(t3 >> 16) & 0xff] ^ TD2[(t2 >> 8) & 0xff] ^ TD3[t1 & 0xff] ^ rk[32];
+        s1 = TD0[t1 >> 24] ^ TD1[(t0 >> 16) & 0xff] ^ TD2[(t3 >> 8) & 0xff] ^ TD3[t2 & 0xff] ^ rk[33];
+        s2 = TD0[t2 >> 24] ^ TD1[(t1 >> 16) & 0xff] ^ TD2[(t0 >> 8) & 0xff] ^ TD3[t3 & 0xff] ^ rk[34];
+        s3 = TD0[t3 >> 24] ^ TD1[(t2 >> 16) & 0xff] ^ TD2[(t1 >> 8) & 0xff] ^ TD3[t0 & 0xff] ^ rk[35];
+        /* round 9: */
+        t0 = TD0[s0 >> 24] ^ TD1[(s3 >> 16) & 0xff] ^ TD2[(s2 >> 8) & 0xff] ^ TD3[s1 & 0xff] ^ rk[36];
+        t1 = TD0[s1 >> 24] ^ TD1[(s0 >> 16) & 0xff] ^ TD2[(s3 >> 8) & 0xff] ^ TD3[s2 & 0xff] ^ rk[37];
+        t2 = TD0[s2 >> 24] ^ TD1[(s1 >> 16) & 0xff] ^ TD2[(s0 >> 8) & 0xff] ^ TD3[s3 & 0xff] ^ rk[38];
+        t3 = TD0[s3 >> 24] ^ TD1[(s2 >> 16) & 0xff] ^ TD2[(s1 >> 8) & 0xff] ^ TD3[s0 & 0xff] ^ rk[39];
+        if (Nr > 10)
+        {
+            /* round 10: */
+            s0 = TD0[t0 >> 24] ^ TD1[(t3 >> 16) & 0xff] ^ TD2[(t2 >> 8) & 0xff] ^ TD3[t1 & 0xff] ^ rk[40];
+            s1 = TD0[t1 >> 24] ^ TD1[(t0 >> 16) & 0xff] ^ TD2[(t3 >> 8) & 0xff] ^ TD3[t2 & 0xff] ^ rk[41];
+            s2 = TD0[t2 >> 24] ^ TD1[(t1 >> 16) & 0xff] ^ TD2[(t0 >> 8) & 0xff] ^ TD3[t3 & 0xff] ^ rk[42];
+            s3 = TD0[t3 >> 24] ^ TD1[(t2 >> 16) & 0xff] ^ TD2[(t1 >> 8) & 0xff] ^ TD3[t0 & 0xff] ^ rk[43];
+            /* round 11: */
+            t0 = TD0[s0 >> 24] ^ TD1[(s3 >> 16) & 0xff] ^ TD2[(s2 >> 8) & 0xff] ^ TD3[s1 & 0xff] ^ rk[44];
+            t1 = TD0[s1 >> 24] ^ TD1[(s0 >> 16) & 0xff] ^ TD2[(s3 >> 8) & 0xff] ^ TD3[s2 & 0xff] ^ rk[45];
+            t2 = TD0[s2 >> 24] ^ TD1[(s1 >> 16) & 0xff] ^ TD2[(s0 >> 8) & 0xff] ^ TD3[s3 & 0xff] ^ rk[46];
+            t3 = TD0[s3 >> 24] ^ TD1[(s2 >> 16) & 0xff] ^ TD2[(s1 >> 8) & 0xff] ^ TD3[s0 & 0xff] ^ rk[47];
+            if (Nr > 12)
+            {
+                /* round 12: */
+                s0 = TD0[t0 >> 24] ^ TD1[(t3 >> 16) & 0xff] ^ TD2[(t2 >> 8) & 0xff] ^ TD3[t1 & 0xff] ^ rk[48];
+                s1 = TD0[t1 >> 24] ^ TD1[(t0 >> 16) & 0xff] ^ TD2[(t3 >> 8) & 0xff] ^ TD3[t2 & 0xff] ^ rk[49];
+                s2 = TD0[t2 >> 24] ^ TD1[(t1 >> 16) & 0xff] ^ TD2[(t0 >> 8) & 0xff] ^ TD3[t3 & 0xff] ^ rk[50];
+                s3 = TD0[t3 >> 24] ^ TD1[(t2 >> 16) & 0xff] ^ TD2[(t1 >> 8) & 0xff] ^ TD3[t0 & 0xff] ^ rk[51];
+                /* round 13: */
+                t0 = TD0[s0 >> 24] ^ TD1[(s3 >> 16) & 0xff] ^ TD2[(s2 >> 8) & 0xff] ^ TD3[s1 & 0xff] ^ rk[52];
+                t1 = TD0[s1 >> 24] ^ TD1[(s0 >> 16) & 0xff] ^ TD2[(s3 >> 8) & 0xff] ^ TD3[s2 & 0xff] ^ rk[53];
+                t2 = TD0[s2 >> 24] ^ TD1[(s1 >> 16) & 0xff] ^ TD2[(s0 >> 8) & 0xff] ^ TD3[s3 & 0xff] ^ rk[54];
+                t3 = TD0[s3 >> 24] ^ TD1[(s2 >> 16) & 0xff] ^ TD2[(s1 >> 8) & 0xff] ^ TD3[s0 & 0xff] ^ rk[55];
+            }
+        }
+        rk += Nr << 2;
+    }
+
+
+    #[cfg(not(FULL_UNROLL))]{
+    /* Nr - 1 full rounds: */
+    r = Nr >> 1;
+        loop {
+            t0 = TD0[(s0 >> 24)] ^ TD1[(s3 >> 16) & 0xff] ^ TD2[(s2 >>  8) & 0xff] ^ TD3[(s1) & 0xff] ^ rk[4];
+            t1 = TD0[(s1 >> 24)] ^ TD1[(s0 >> 16) & 0xff] ^ TD2[(s3 >>  8) & 0xff] ^ TD3[(s2) & 0xff] ^ rk[5];
+            t2 = TD0[(s2 >> 24)] ^ TD1[(s1 >> 16) & 0xff] ^ TD2[(s0 >>  8) & 0xff] ^ TD3[(s3) & 0xff] ^ rk[6];
+            t3 = TD0[(s3 >> 24)] ^ TD1[(s2 >> 16) & 0xff] ^ TD2[(s1 >>  8) & 0xff] ^ TD3[(s0) & 0xff] ^ rk[7];
+            rk += 8;
+            if { r -= 1; r } == 0 {
+                break;
+            }
+            s0 = TD0[(t0 >> 24)] ^ TD1[(t3 >> 16) & 0xff] ^ TD2[(t2 >>  8) & 0xff] ^ TD3[(t1) & 0xff] ^ rk[0];
+            s1 = TD0[(t1 >> 24)] ^ TD1[(t0 >> 16) & 0xff] ^ TD2[(t3 >>  8) & 0xff] ^ TD3[(t2) & 0xff] ^ rk[1];
+            s2 = TD0[(t2 >> 24)] ^ TD1[(t1 >> 16) & 0xff] ^ TD2[(t0 >>  8) & 0xff] ^ TD3[(t3) & 0xff] ^ rk[2];
+            s3 = TD0[(t3 >> 24)] ^ TD1[(t2 >> 16) & 0xff] ^ TD2[(t1 >>  8) & 0xff] ^ TD3[(t0) & 0xff] ^ rk[3];
+        }
+    }
+
+    s0 = (TD4[(t0 >> 24)       ] & 0xff000000) ^ (TD4[(t3 >> 16) & 0xff] & 0x00ff0000) ^ (TD4[(t2 >>  8) & 0xff] & 0x0000ff00) ^ (TD4[(t1) & 0xff] & 0x000000ff) ^ rk[0];
+    putu_u32(pt, s0);
+    
+s1 = (TD4[(t1 >> 24)] & 0xff000000) ^
+    (TD4[(t0 >> 16) & 0xff] & 0x00ff0000) ^
+    (TD4[(t3 >>  8) & 0xff] & 0x0000ff00) ^
+    (TD4[(t2      ) & 0xff] & 0x000000ff) ^
+    rk[1];
+PUTU32(pt +  4, s1);
+s2 =
+    (Td4[(t2 >> 24)       ] & 0xff000000) ^
+    (Td4[(t1 >> 16) & 0xff] & 0x00ff0000) ^
+    (Td4[(t0 >>  8) & 0xff] & 0x0000ff00) ^
+    (Td4[(t3      ) & 0xff] & 0x000000ff) ^
+    rk[2];
+PUTU32(pt +  8, s2);
+s3 =
+    (Td4[(t3 >> 24)       ] & 0xff000000) ^
+    (Td4[(t2 >> 16) & 0xff] & 0x00ff0000) ^
+    (Td4[(t1 >>  8) & 0xff] & 0x0000ff00) ^
+    (Td4[(t0      ) & 0xff] & 0x000000ff) ^
+    rk[3];
+PUTU32(pt + 12, s3);
 }
 
 pub fn rijndael_set_key_enc_only(ctx: &mut rijndael_ctx, key: &[u8], bits: i32) -> i32 {
