@@ -1,4 +1,4 @@
 mod crypto;
 mod endian;
-mod kirk;
+mod kirk_engine;
 mod psp_header;

@@ -55,7 +55,7 @@ pub struct PspModuleInfo {
 }
 
 //150
-#[repr(packed)]
+#[repr(C,packed)]
 struct PSPHeader2 {
     signature: u32,
     mod_info: PspModuleInfo,
@@ -85,7 +85,7 @@ struct PSPHeader2 {
 }
 
 //Unkn
-#[repr(packed)]
+#[repr(C,packed)]
 struct PSPHeader {
     signature: [u8; 4],
     mod_attribute: u16,

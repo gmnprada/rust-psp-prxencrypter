@@ -1,5 +1,6 @@
 /*	$OpenBSD: rijndael.c,v 1.19 2008/06/09 07:49:45 djm Exp $ */
-// To rust port for prx encrypter (Signed Eboot To PSP )
+
+// To rust port for rust-prx-encrypter (Signed Eboot To PSP)
 use core::ffi::c_int;
 
 // crypto.h

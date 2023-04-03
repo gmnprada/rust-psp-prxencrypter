@@ -1,1 +1,0 @@
-// this should port the kirk.c and kirk.h from c
