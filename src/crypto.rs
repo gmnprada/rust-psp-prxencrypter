@@ -999,29 +999,16 @@ pub fn rijndael_decrypt(rk: &[u32], nr: usize, ct: &[u8; 16], pt: &mut [u8; 16])
         }
     }
 
-    s0 = (TD4[(t0 >> 24)       ] & 0xff000000) ^ (TD4[(t3 >> 16) & 0xff] & 0x00ff0000) ^ (TD4[(t2 >>  8) & 0xff] & 0x0000ff00) ^ (TD4[(t1) & 0xff] & 0x000000ff) ^ rk[0];
+    s0 = (TD4[(t0 >> 24)] & 0xff000000) ^ (TD4[(t3 >> 16) & 0xff] & 0x00ff0000) ^ (TD4[(t2 >>  8) & 0xff] & 0x0000ff00) ^ (TD4[(t1) & 0xff] & 0x000000ff) ^ rk[0];
     putu_u32(pt, s0);
     
-s1 = (TD4[(t1 >> 24)] & 0xff000000) ^
-    (TD4[(t0 >> 16) & 0xff] & 0x00ff0000) ^
-    (TD4[(t3 >>  8) & 0xff] & 0x0000ff00) ^
-    (TD4[(t2      ) & 0xff] & 0x000000ff) ^
-    rk[1];
-PUTU32(pt +  4, s1);
-s2 =
-    (Td4[(t2 >> 24)       ] & 0xff000000) ^
-    (Td4[(t1 >> 16) & 0xff] & 0x00ff0000) ^
-    (Td4[(t0 >>  8) & 0xff] & 0x0000ff00) ^
-    (Td4[(t3      ) & 0xff] & 0x000000ff) ^
-    rk[2];
-PUTU32(pt +  8, s2);
-s3 =
-    (Td4[(t3 >> 24)       ] & 0xff000000) ^
-    (Td4[(t2 >> 16) & 0xff] & 0x00ff0000) ^
-    (Td4[(t1 >>  8) & 0xff] & 0x0000ff00) ^
-    (Td4[(t0      ) & 0xff] & 0x000000ff) ^
-    rk[3];
-PUTU32(pt + 12, s3);
+    s1 = (TD4[(t1 >> 24)] & 0xff000000) ^ (TD4[(t0 >> 16) & 0xff] & 0x00ff0000) ^ (TD4[(t3 >>  8) & 0xff] & 0x0000ff00) ^ (TD4[(t2) & 0xff] & 0x000000ff) ^ rk[1];
+    putu_u32(pt +  4, s1);
+    s2 = (TD4[(t2 >> 24)] & 0xff000000) ^ (TD4[(t1 >> 16) & 0xff] & 0x00ff0000) ^ (TD4[(t0 >>  8) & 0xff] & 0x0000ff00) ^ (TD4[(t3) & 0xff] & 0x000000ff) ^ rk[2];
+
+    putu_u32(pt +  8, s2);
+    s3 = (TD4[(t3 >> 24)] & 0xff000000) ^ (TD4[(t2 >> 16) & 0xff] & 0x00ff0000) ^ (TD4[(t1 >>  8) & 0xff] & 0x0000ff00) ^ (TD4[(t0) & 0xff] & 0x000000ff) ^ rk[3];
+    put_u32(pt + 12, s3);
 }
 
 pub fn rijndael_set_key_enc_only(ctx: &mut rijndael_ctx, key: &[u8], bits: i32) -> i32 {
