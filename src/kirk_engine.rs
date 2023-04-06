@@ -195,4 +195,41 @@ pub fn kirk_cmd0(outbuff: &mut [u8], inbuff: &[u8], size: usize, generate_trash:
 
 
 
+fn kirk_CMD1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> i32 {
+    if is_kirk_initialized() == 0 {
+        return KIRK_NOT_INITIALIZED;
+    }
 
+    let header = unsafe { &*(inbuff.as_ptr() as *const KIRK_CMD1_HEADER) };
+    if header.mode != KIRK_MODE_CMD1 {
+        return KIRK_INVALID_MODE;
+    }
+
+    let mut keys = HeaderKeys {
+        AES: [0; 16],
+        CMAC: [0; 16],
+    };
+
+    unsafe{
+        let aes_cmac_keys_ptr: *const u8 = inbuff.as_ptr().add(mem::size_of::<KIRK_CMD1_HEADER>());
+        AES_cbc_decrypt(&aes_kirk1, aes_cmac_keys_ptr, &mut keys as *mut _ as *mut u8, 16 * 2);
+    }
+
+    if do_check {
+        let ret = kirk_CMD10(inbuff, size);
+        if ret != KIRK_OPERATION_SUCCESS {
+            return ret;
+        }
+    }
+
+
+    let mut k1 = Aes128::new_varkey(&keys.aes).unwrap();
+
+    unsafe{
+        let data_ptr = inbuff.as_ptr().add(mem::size_of::<KIRK_CMD1_HEADER>() + header.data_offset);
+    }
+
+    AES_cbc_decrypt(&mut k1, data_ptr, outbuff, header.data_size);
+
+    return KIRK_OPERATION_SUCCESS;
+}
