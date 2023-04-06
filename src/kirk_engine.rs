@@ -233,3 +233,36 @@ fn kirk_CMD1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> 
 
     return KIRK_OPERATION_SUCCESS;
 }
+
+fn kirk_CMD4(outbuff: *mut c_void, inbuff: *const c_void, size: c_int) -> c_int {
+    if is_kirk_initialized == 0 {
+        return KIRK_NOT_INITIALIZED;
+    }
+
+    let header = inbuff as *const KIRK_AES128CBC_HEADER;
+
+    unsafe{
+        if (*header).mode != KIRK_MODE_ENCRYPT_CBC {
+            return KIRK_INVALID_MODE;
+        }
+        if (*header).data_size == 0 {
+            return KIRK_DATA_SIZE_ZERO;
+        }
+    }
+
+    let key = unsafe { kirk_4_7_get_key((*header).keyseed) };
+    if key == std::ptr::null() {
+        return KIRK_INVALID_SIZE;
+    }
+
+    // Set the key
+    let mut aes_key = AES_ctx::new();
+    AES_set_key(&mut aes_key, key, 128);
+
+    // Encrypt the data
+    unsafe {
+        AES_cbc_encrypt(&aes_key, inbuff.add(std::mem::size_of::<KIRK_AES128CBC_HEADER>()), outbuff, size);
+    }
+
+    return KIRK_OPERATION_SUCCESS;
+}
