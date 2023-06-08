@@ -193,8 +193,6 @@ pub fn kirk_cmd0(outbuff: &mut [u8], inbuff: &[u8], size: usize, generate_trash:
     KIRK_OPERATION_SUCCESS
 }
 
-
-
 fn kirk_CMD1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> i32 {
     if is_kirk_initialized() == 0 {
         return KIRK_NOT_INITIALIZED;
@@ -266,3 +264,138 @@ fn kirk_CMD4(outbuff: *mut c_void, inbuff: *const c_void, size: c_int) -> c_int 
 
     return KIRK_OPERATION_SUCCESS;
 }
+
+fn kirk_CMD7(outbuff: &mut [u8], inbuff: &[u8], size: usize) -> i32 {
+    static mut IS_KIRK_INITIALIZED: i32 = 0;
+
+    unsafe {
+        if IS_KIRK_INITIALIZED == 0 {
+            return KIRK_NOT_INITIALIZED;
+        }
+    }
+
+    let header = unsafe { &*(inbuff.as_ptr() as *const KIRK_AES128CBC_HEADER) };
+    if header.mode != KIRK_MODE_DECRYPT_CBC {
+        return KIRK_INVALID_MODE;
+    }
+    if header.data_size == 0 {
+        return KIRK_DATA_SIZE_ZERO;
+    }
+
+    let key = match kirk_4_7_get_key(header.keyseed) {
+        Some(k) => k,
+        None => return KIRK_INVALID_SIZE as i32,
+    };
+
+    let key_array: GenericArray<u8, U16> = *GenericArray::from_slice(&key);
+    let mut aes_key = Aes128::new(&key_array);
+
+    let ciphertext = &inbuff[sizeof::<KIRK_AES128CBC_HEADER>()..];
+    let plaintext = &mut outbuff[..size];
+
+    let iv = GenericArray::from_slice(&header.iv);
+
+    aes_key.decrypt(&mut iv.clone(), ciphertext, plaintext);
+
+    KIRK_OPERATION_SUCCESS
+}
+
+fn kirk_CMD10(inbuff: &[u8], insize: usize) -> i32 {
+    static mut IS_KIRK_INITIALIZED: i32 = 0;
+
+    unsafe {
+        if IS_KIRK_INITIALIZED == 0 {
+            return KIRK_NOT_INITIALIZED;
+        }
+    }
+
+    let header = unsafe { &*(inbuff.as_ptr() as *const KIRK_CMD1_HEADER) };
+
+    if !(header.mode == KIRK_MODE_CMD1 || header.mode == KIRK_MODE_CMD2 || header.mode == KIRK_MODE_CMD3) {
+        return KIRK_INVALID_MODE;
+    }
+    if header.data_size == 0 {
+        return KIRK_DATA_SIZE_ZERO;
+    }
+
+    if header.mode == KIRK_MODE_CMD1 {
+        let mut keys = HeaderKeys {
+            CMAC: [0; 16],
+        };
+
+        let aes_kirk1 = Aes128::new(GenericArray::from_slice(&[0; 16]));
+
+        aes_cbc_decrypt(&aes_kirk1, inbuff, &mut keys.CMAC)?;
+
+        let cmac_key = Aes128::new(GenericArray::from_slice(&keys.CMAC));
+
+        let cmac_header_hash = calculate_cmac(&cmac_key, &inbuff[0x60..0x90])?;
+        let chk_size = header.data_size;
+        let aligned_size = if chk_size % 16 == 0 {
+            chk_size
+        } else {
+            chk_size + 16 - (chk_size % 16)
+        };
+        let cmac_data_hash = calculate_cmac(&cmac_key, &inbuff[0x60..0x90 + aligned_size + header.data_offset])?;
+
+        if cmac_header_hash != header.CMAC_header_hash {
+            println!("header hash invalid");
+            return KIRK_HEADER_HASH_INVALID;
+        }
+
+        if cmac_data_hash != header.CMAC_data_hash {
+            println!("data hash invalid");
+            return KIRK_DATA_HASH_INVALID;
+        }
+
+        return KIRK_OPERATION_SUCCESS;
+    }
+
+    KIRK_SIG_CHECK_INVALID 
+}
+
+fn kirk_CMD11(outbuff: &mut [u8], inbuff: &[u8]) -> i32 {
+    // Check if kirk is initialized
+    if is_kirk_initialized() == 0 {
+        return KIRK_NOT_INITIALIZED;
+    }
+
+    // Convert the input buffer into a KIRK_SHA1_HEADER struct
+    let header: &KIRK_SHA1_HEADER = unsafe { &*(inbuff.as_ptr() as *const KIRK_SHA1_HEADER) };
+
+    // Check if data size is zero or if the size argument is zero
+    if header.data_size == 0 || inbuff.is_empty() {
+        return KIRK_DATA_SIZE_ZERO;
+    }
+
+    // Create a SHA1 context and reset it
+    let mut sha = Sha1::new();
+    sha.reset();
+
+    // Calculate the actual size to process
+    let size = usize::min(header.data_size as usize, inbuff.len() - std::mem::size_of::<KIRK_SHA1_HEADER>());
+
+    // Calculate the SHA1 hash
+    let data_start = inbuff.as_ptr().offset(std::mem::size_of::<KIRK_SHA1_HEADER>() as isize);
+    unsafe {
+        sha.input(slice::from_raw_parts(data_start, size));
+    }
+    let digest = sha.result();
+
+    // Copy the hash digest to the output buffer
+    if outbuff.len() >= digest.len() {
+        outbuff[..digest.len()].copy_from_slice(&digest);
+        return KIRK_OPERATION_SUCCESS;
+    }
+
+    // Return an error if the output buffer is too small
+    return -1; // Or any other suitable error code
+}
+
+// TODO kirk_14CMD
+
+// TODO kirk_15CMD  
+
+
+// https://www.psdevwiki.com/psp/Kirk 
+// TODO Kirk_16CMD , Kirk_17CMD, KIRK_18CMD
