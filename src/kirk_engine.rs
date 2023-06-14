@@ -376,8 +376,8 @@ fn kirk_CMD11(outbuff: &mut [u8], inbuff: &[u8]) -> i32 {
     let size = usize::min(header.data_size as usize, inbuff.len() - std::mem::size_of::<KIRK_SHA1_HEADER>());
 
     // Calculate the SHA1 hash
-    let data_start = inbuff.as_ptr().offset(std::mem::size_of::<KIRK_SHA1_HEADER>() as isize);
     unsafe {
+        let data_start = inbuff.as_ptr().offset(std::mem::size_of::<KIRK_SHA1_HEADER>() as isize);
         sha.input(slice::from_raw_parts(data_start, size));
     }
     let digest = sha.result();
