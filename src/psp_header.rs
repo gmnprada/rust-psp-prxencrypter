@@ -1,5 +1,5 @@
 #[repr(C, packed)]
-pub struct Elf32_Ehdr {
+pub struct Elf32Ehdr {
     e_magic: u32,
     e_class: u8,
     e_data: u8,
@@ -21,7 +21,7 @@ pub struct Elf32_Ehdr {
 }
 
 #[repr(C, packed)]
-pub struct Elf32_Phdr {
+pub struct Elf32Phdr {
     p_type: u32,
     p_offset: u32,
     p_vaddr: u32,
@@ -33,7 +33,7 @@ pub struct Elf32_Phdr {
 }
 
 #[repr(C, packed)]
-pub struct Elf32_Shdr {
+pub struct Elf32Shdr {
     sh_name: u32,
     sh_type: u32,
     sh_flags: u32,
@@ -55,7 +55,7 @@ pub struct PspModuleInfo {
 }
 
 //150
-#[repr(C,packed)]
+#[repr(C, packed)]
 struct PSPHeader2 {
     signature: u32,
     mod_info: PspModuleInfo,
@@ -85,7 +85,7 @@ struct PSPHeader2 {
 }
 
 //Unkn
-#[repr(C,packed)]
+#[repr(C, packed)]
 struct PSPHeader {
     signature: [u8; 4],
     mod_attribute: u16,
@@ -124,7 +124,7 @@ struct PSPHeader {
 
 //Maybe Latest
 #[repr(C, packed)]
-struct LPPSPHEADER {
+struct LPPSPHeader {
     signature: [u8; 4],
     mod_attribute: u16,
     comp_attribute: u16,

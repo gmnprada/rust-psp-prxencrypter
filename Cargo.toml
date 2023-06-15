@@ -1,5 +1,5 @@
 [package]
-name = "prx-encrypter"
+name = "rpsp-prx-encrypter"
 authors = ["gmnp"]
 version = "0.1.0"
 edition = "2021"

@@ -1,3 +1,4 @@
+#![crate_type="lib"]
 /*	$OpenBSD: rijndael.c,v 1.19 2008/06/09 07:49:45 djm Exp $ */
 
 
@@ -73,6 +74,8 @@
 // as many of type casted to usize here which in rust can be 4 bytes or 8 bytes depend on machine its run should we always use 4 bytes and 1bytes length like u32, s32 ,and u8?
 // nothing is clear yet except we already wrote the test by checking the compiled result
 
+use std::convert::TryInto;
+
 // crypto.h
 const AES_KEY_LEN_128: usize = 128;
 const AES_KEY_LEN_192: usize = 192;
@@ -95,7 +98,7 @@ const CONST_ZERO: [u8; 16] = [
 #[repr(C)]
 pub struct RijndaelCtx {
     pub enc_only: i32,
-    pub Nr: i32,
+    pub nr: i32,
     pub ek: [u32; 4 * (AES_MAXROUNDS + 1)],
     pub dk: [u32; 4 * (AES_MAXROUNDS + 1)],
 }
@@ -106,18 +109,18 @@ impl RijndaelCtx {
     pub fn new() -> RijndaelCtx {
         RijndaelCtx {
             enc_only: 0,
-            Nr: 0,
+            nr: 0,
             ek: [0; 4 * (AES_MAXROUNDS + 1)],
             dk: [0; 4 * (AES_MAXROUNDS + 1)],
         }
     }
 }
 
-impl From<RijndaelCtx> for AES_ctx {
-    fn from(val: RijndaelCtx) -> AES_ctx {
-        AES_ctx {
+impl From<RijndaelCtx> for AesCtx {
+    fn from(val: RijndaelCtx) -> AesCtx {
+        AesCtx {
             enc_only: val.enc_only,
-            Nr: val.Nr,
+            nr: val.nr,
             ek: val.ek,
             dk: val.dk,
         }
@@ -127,31 +130,31 @@ pub type PwuAESContextBuffer = RijndaelCtx;
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 #[repr(C)]
-pub struct AES_ctx {
+pub struct AesCtx {
     pub enc_only: i32,
-    pub Nr: i32,
+    pub nr: i32,
     pub ek: [u32; 4 * (AES_MAXROUNDS + 1)],
     pub dk: [u32; 4 * (AES_MAXROUNDS + 1)],
 }
 
 // fill it with 0x00 bytes 
 // shoul we fill it with random data , dunno yet ..
-impl AES_ctx {
-    pub fn new() -> AES_ctx {
-        AES_ctx {
+impl AesCtx {
+    pub fn new() -> AesCtx {
+        AesCtx {
             enc_only: 0,
-            Nr: 0,
+            nr: 0,
             ek: [0; 4 * (AES_MAXROUNDS + 1)],
             dk: [0; 4 * (AES_MAXROUNDS + 1)],
         }
     }
 }
 
-impl From<AES_ctx> for RijndaelCtx {
-    fn from(val: AES_ctx) -> RijndaelCtx {
+impl From<AesCtx> for RijndaelCtx {
+    fn from(val: AesCtx) -> RijndaelCtx {
         RijndaelCtx {
             enc_only: val.enc_only,
-            Nr: val.Nr,
+            nr: val.nr,
             ek: val.ek,
             dk: val.dk,
         }
@@ -2768,10 +2771,7 @@ pub fn put_u32(ct: &mut [u8], st: u32) {
 }
 
 pub fn rijndaelKeySetupEnc(mut rk: &mut [u32], cipher_key: &[u8], key_bits: i32) -> i32 {
-    let mut i = 0;
-
-    //as i used to access rcon index let be safe here for ++i code
-    let mut j: usize = 0;
+    let i = 0;
     let mut temp: u32;
 
     rk[0] = get_u32(&cipher_key[0..]);
@@ -2790,7 +2790,7 @@ pub fn rijndaelKeySetupEnc(mut rk: &mut [u32], cipher_key: &[u8], key_bits: i32)
             rk[5] = rk[1] ^ rk[4];
             rk[6] = rk[2] ^ rk[5];
             rk[7] = rk[3] ^ rk[6];
-            j = i + 1;
+            let j = i + 1;
             if j == 10 {
                 return 10;
             }
@@ -2813,7 +2813,7 @@ pub fn rijndaelKeySetupEnc(mut rk: &mut [u32], cipher_key: &[u8], key_bits: i32)
             rk[9] = rk[3] ^ rk[8];
             rk[10] = rk[4] ^ rk[9];
             rk[11] = rk[5] ^ rk[10];
-            j = i + 1;
+            let j = i + 1;
             if j == 8 {
                 return 12;
             }
@@ -2835,7 +2835,7 @@ pub fn rijndaelKeySetupEnc(mut rk: &mut [u32], cipher_key: &[u8], key_bits: i32)
             rk[10] = rk[2] ^ rk[9];
             rk[11] = rk[3] ^ rk[10];
 
-            j = i + 1;
+            let j = i + 1;
             if j == 7 {
                 return 14;
             }
@@ -2856,7 +2856,7 @@ pub fn rijndaelKeySetupEnc(mut rk: &mut [u32], cipher_key: &[u8], key_bits: i32)
 }
 
 pub fn rijndaelKeySetupDec(rk: &mut [u32], cipher_key: &[u8], key_bits: i32) -> i32 {
-    let mut nr: i32;
+    let nr: i32;
     let mut i: usize;
     let mut j: usize;
     let mut temp: u32;
@@ -2912,7 +2912,7 @@ pub fn rijndaelKeySetupDec(rk: &mut [u32], cipher_key: &[u8], key_bits: i32) -> 
     nr
 }
 
-pub fn rijndaelDecrypt(mut rk: &[u32], Nr: i32, ct: &[u8; 16], pt: &mut [u8; 16]) {
+pub fn rijndaelDecrypt(mut rk: &[u32], nr: i32, ct: &[u8; 16], pt: &mut [u8; 16]) {
     let mut s0: u32;
     let mut s1: u32;
     let mut s2: u32;
@@ -2923,7 +2923,7 @@ pub fn rijndaelDecrypt(mut rk: &[u32], Nr: i32, ct: &[u8; 16], pt: &mut [u8; 16]
     let mut t3: u32;
 
     #[cfg(not(FULL_UNROLL))]
-    let mut r: i32;
+    let r: i32;
 
     s0 = get_u32(&ct[0..4]) ^ rk[0];
     s1 = get_u32(&ct[4..8]) ^ rk[1];
@@ -3103,7 +3103,7 @@ pub fn rijndaelDecrypt(mut rk: &[u32], Nr: i32, ct: &[u8; 16], pt: &mut [u8; 16]
             ^ TD2[(s1 >> 8) & 0xff]
             ^ TD3[s0 & 0xff]
             ^ rk[39];
-        if (Nr > 10) {
+        if (nr > 10) {
             /* round 10: */
             s0 = TD0[t0 >> 24]
                 ^ TD1[(t3 >> 16) & 0xff]
@@ -3146,7 +3146,7 @@ pub fn rijndaelDecrypt(mut rk: &[u32], Nr: i32, ct: &[u8; 16], pt: &mut [u8; 16]
                 ^ TD2[(s1 >> 8) & 0xff]
                 ^ TD3[s0 & 0xff]
                 ^ rk[47];
-            if (Nr > 12) {
+            if (nr > 12) {
                 /* round 12: */
                 s0 = TD0[t0 >> 24]
                     ^ TD1[(t3 >> 16) & 0xff]
@@ -3191,13 +3191,13 @@ pub fn rijndaelDecrypt(mut rk: &[u32], Nr: i32, ct: &[u8; 16], pt: &mut [u8; 16]
                     ^ rk[55];
             }
         }
-        rk += Nr << 2;
+        rk += nr << 2;
     }
 
     #[cfg(not(FULL_UNROLL))]
     {
-        /* Nr - 1 full rounds: */
-        r = Nr >> 1;
+        /* nr - 1 full rounds: */
+        r = nr >> 1;
         loop {
             t0 = TD0[(s0 >> 24) as usize]
                 ^ TD1[(s3 >> 16) as usize & 0xff]
@@ -3228,7 +3228,7 @@ pub fn rijndaelDecrypt(mut rk: &[u32], Nr: i32, ct: &[u8; 16], pt: &mut [u8; 16]
             // correct me on this one
             rk = &rk[8..];
 
-            if (--r == 0) {
+            if --r == 0 {
                 break;
             }
 
@@ -3287,7 +3287,7 @@ pub fn rijndaelDecrypt(mut rk: &[u32], Nr: i32, ct: &[u8; 16], pt: &mut [u8; 16]
     put_u32(&mut pt[12..], s3);
 }
 
-pub fn rijndaelEncrypt(mut rk: &[u32], Nr: i32, pt: &[u8; 16], ct: &mut [u8; 16]) {
+pub fn rijndaelEncrypt(mut rk: &[u32], nr: i32, pt: &[u8; 16], ct: &mut [u8; 16]) {
     let mut s0: u32;
     let mut s1: u32;
     let mut s2: u32;
@@ -3505,7 +3505,7 @@ pub fn rijndaelEncrypt(mut rk: &[u32], Nr: i32, pt: &[u8; 16], ct: &mut [u8; 16]
             ^ TE3[(s2 & 0xff) as usize]
             ^ rk[39];
 
-        if Nr > 10 {
+        if nr > 10 {
             // round 10:
             s0 = TE0[(t0 >> 24) as usize]
                 ^ TE1[((t1 >> 16) & 0xff) as usize]
@@ -3548,7 +3548,7 @@ pub fn rijndaelEncrypt(mut rk: &[u32], Nr: i32, pt: &[u8; 16], ct: &mut [u8; 16]
                 ^ TE2[((s1 >> 8) & 0xff) as usize]
                 ^ TE3[(s2 & 0xff) as usize]
                 ^ rk[47];
-            if Nr > 12 {
+            if nr > 12 {
                 // round 12:
                 s0 = TE0[(t0 >> 24) as usize]
                     ^ TE1[((t1 >> 16) & 0xff) as usize]
@@ -3594,14 +3594,14 @@ pub fn rijndaelEncrypt(mut rk: &[u32], Nr: i32, pt: &[u8; 16], ct: &mut [u8; 16]
                     ^ rk[55];
             }
         }
-        rk += Nr << 2;
+        rk += nr << 2;
 
         //end of FULL_UNROLL
     }
 
     #[cfg(not(FULL_UNROLL))]
     {
-        r = Nr >> 1;
+        r = nr >> 1;
         loop {
             t0 = TE0[(s0 >> 24) as usize]
                 ^ TE1[((s1 >> 16) & 0xff) as usize]
@@ -3691,7 +3691,7 @@ pub fn rijndael_set_key_enc_only(ctx: &mut RijndaelCtx, key: &[u8], bits: i32) -
     if rounds == 0 {
         return -1;
     }
-    ctx.Nr = rounds;
+    ctx.nr = rounds;
     ctx.enc_only = 1;
     return 0;
 }
@@ -3704,7 +3704,7 @@ pub fn rijndael_set_key(ctx: &mut RijndaelCtx, key: &[u8], bits: i32) -> i32 {
     if rijndaelKeySetupDec(&mut ctx.dk, key, bits) != rounds {
         return -1;
     }
-    ctx.Nr = rounds;
+    ctx.nr = rounds;
     ctx.enc_only = 0;
     return 0;
 }
@@ -3712,7 +3712,7 @@ pub fn rijndael_set_key(ctx: &mut RijndaelCtx, key: &[u8], bits: i32) -> i32 {
 pub fn rijndael_decrypt(ctx: &RijndaelCtx, src: &[u8], dst: &mut [u8]) {
     rijndaelDecrypt(
         &ctx.dk,
-        ctx.Nr,
+        ctx.nr,
         src.try_into().unwrap(),
         dst.try_into().unwrap(),
     );
@@ -3721,30 +3721,30 @@ pub fn rijndael_decrypt(ctx: &RijndaelCtx, src: &[u8], dst: &mut [u8]) {
 pub fn rijndael_encrypt(ctx: &RijndaelCtx, src: &[u8], dst: &mut [u8]) {
     rijndaelEncrypt(
         &ctx.ek,
-        ctx.Nr,
+        ctx.nr,
         src.try_into().unwrap(),
         dst.try_into().unwrap(),
     );
 }
 
-pub fn AES_set_key(ctx: &mut AES_ctx, key: &[u8], bits: i32) -> i32 {
+pub fn AES_set_key(ctx: &mut AesCtx, key: &[u8], bits: i32) -> i32 {
     let mut ctx: RijndaelCtx = (*ctx).into();
     return rijndael_set_key(&mut ctx, key, bits);
 }
 
-pub fn AES_decrypt(ctx: &AES_ctx, src: &[u8], dst: &mut [u8]) {
+pub fn AES_decrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8]) {
     return rijndaelDecrypt(
         &ctx.dk,
-        ctx.Nr,
+        ctx.nr,
         src.try_into().unwrap(),
         dst.try_into().unwrap(),
     );
 }
 
-pub fn AES_encrypt(ctx: &AES_ctx, src: &[u8], dst: &mut [u8]) {
+pub fn AES_encrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8]) {
     return rijndaelEncrypt(
         &ctx.ek,
-        ctx.Nr,
+        ctx.nr,
         src.try_into().unwrap(),
         dst.try_into().unwrap(),
     );
@@ -3756,7 +3756,7 @@ pub fn xor_128(a: &[u8], b: &[u8], out: &mut [u8]) {
     }
 }
 
-pub fn AES_cbc_encrypt(ctx: &AES_ctx, src: &[u8], dst: &mut [u8], size: usize) {
+pub fn AES_cbc_encrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8], size: usize) {
     let mut block_buff = [0u8; 16];
 
     for i in (0..size).step_by(16) {
@@ -3765,8 +3765,9 @@ pub fn AES_cbc_encrypt(ctx: &AES_ctx, src: &[u8], dst: &mut [u8], size: usize) {
 
         // step 2: XOR with previous block
         if i != 0 {
+            let prev_source :[u8;16] = dst[i..(i + 16)].try_into().unwrap();
             xor_128(
-                &dst[(i - 16)..i],
+                &prev_source,
                 &block_buff,
                 &mut dst[i..(i + 16)],
             );
@@ -3780,7 +3781,7 @@ pub fn AES_cbc_encrypt(ctx: &AES_ctx, src: &[u8], dst: &mut [u8], size: usize) {
     }
 }
 
-pub fn AES_cbc_decrypt(ctx: &AES_ctx, src: &[u8], dst: &mut [u8], size: usize) {
+pub fn AES_cbc_decrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8], size: usize) {
     let mut block_buff = [0u8; 16];
     let mut block_buff_previous = [0u8; 16];
 
@@ -3790,13 +3791,15 @@ pub fn AES_cbc_decrypt(ctx: &AES_ctx, src: &[u8], dst: &mut [u8], size: usize) {
 
     for i in (16..size).step_by(16) {
         let current_block = &src[i..(i + 16)];
-
         block_buff.copy_from_slice(current_block);
         dst[i..(i + 16)].copy_from_slice(current_block);
 
-        AES_decrypt(ctx, &mut dst[i..(i + 16)], &mut dst[i..(i + 16)]);
+        let csrc_temp : [u8; 16] = dst[i..(i + 16)].try_into().unwrap();
+        AES_decrypt(ctx,&csrc_temp, &mut dst[i..(i + 16)]);
+        
+        let csrc_xor_temp : [u8;16] = dst[i..(i + 16)].try_into().unwrap();
         xor_128(
-            &mut dst[i..(i + 16)],
+            &csrc_xor_temp,
             &block_buff_previous,
             &mut dst[i..(i + 16)],
         );
@@ -3815,9 +3818,9 @@ pub fn leftshift_onebit(input: &mut [u8], output: &mut [u8]) {
     }
 }
 
-pub fn generate_subkey(ctx: &AES_ctx, mut k1: &mut [u8], mut k2: &mut [u8]) {
+pub fn generate_subkey(ctx: &AesCtx, mut k1: &mut [u8], mut k2: &mut [u8]) {
     let mut l = [0u8; 16];
-    let mut z = [0u8; 16];
+    let z = [0u8; 16];
     let mut tmp = [0u8; 16];
 
     AES_encrypt(ctx, &z, &mut l);
@@ -3849,7 +3852,7 @@ pub fn padding(lastb: &[u8], pad: &mut [u8], length: usize) {
     }
 }
 
-pub fn AES_CMAC(ctx: &mut AES_ctx, input: &[u8], length: usize, mac: &mut [u8]) {
+pub fn AES_CMAC(ctx: &mut AesCtx, input: &[u8], length: usize, mac: &mut [u8]) {
     let mut x = [0u8; 16];
     let mut y = [0u8; 16];
     let mut m_last = [0u8; 16];
@@ -3898,14 +3901,14 @@ pub fn sha1_circular_shift(bits: u32, word: u32) -> u32 {
     ((word << bits) & 0xFFFFFFFF) | (word >> (32 - bits))
 }
 
-pub struct SHA1Context {
-    Message_Digest: [u32; 5], // Message Digest (output)
-    Length_Low: u32,          // Message length in bits
-    Length_High: u32,         // Message length in bits
-    Message_Block: [u8; 64],  // 512-bit message blocks
-    Message_Block_Index: i32, // Index into message block array
-    Computed: i32,            // Is the digest computed?
-    Corrupted: i32,           // Is the message digest corrupted?
+pub struct Sha1Context {
+    message_digest: [u32; 5], // Message Digest (output)
+    length_low: u32,          // Message length in bits
+    length_high: u32,         // Message length in bits
+    message_block: [u8; 64],  // 512-bit message blocks
+    message_block_index: i32, // Index into message block array
+    computed: i32,            // Is the digest computed?
+    corrupted: i32,           // Is the message digest corrupted?
 }
 
 // Function prototypes
@@ -3913,18 +3916,18 @@ pub struct SHA1Context {
 //fn SHA1PadMessage(context: &mut SHA1Context);
 
 // SHA1Reset function
-pub fn SHA1Reset(context: &mut SHA1Context) {
-    context.Length_Low = 0;
-    context.Length_High = 0;
-    context.Message_Block_Index = 0;
-    context.Message_Digest[0] = 0x67452301;
-    context.Message_Digest[1] = 0xEFCDAB89;
-    context.Message_Digest[2] = 0x98BADCFE;
-    context.Message_Digest[3] = 0x10325476;
-    context.Message_Digest[4] = 0xC3D2E1F0;
+pub fn sha1_reset(context: &mut Sha1Context) {
+    context.length_low = 0;
+    context.length_high = 0;
+    context.message_block_index = 0;
+    context.message_digest[0] = 0x67452301;
+    context.message_digest[1] = 0xEFCDAB89;
+    context.message_digest[2] = 0x98BADCFE;
+    context.message_digest[3] = 0x10325476;
+    context.message_digest[4] = 0xC3D2E1F0;
 
-    context.Computed = 0;
-    context.Corrupted = 0;
+    context.computed = 0;
+    context.corrupted = 0;
 }
 
 
@@ -3945,55 +3948,56 @@ pub fn SHA1Reset(context: &mut SHA1Context) {
  *  Comments:
  *
  */
-pub fn SHA1Result(context: &mut SHA1Context) -> i32 {
-    if context.Corrupted != 0 {
+pub fn sha1_result(context: &mut Sha1Context) -> i32 {
+    if context.corrupted != 0 {
         return 0;
     }
 
-    if context.Computed == 0 {
+    if context.computed == 0 {
         sha1_pad_message(context);
-        context.Computed = 1;
+        context.computed = 1;
     }
 
     return 1
 }
 
-pub fn SHA1Input(context: &mut SHA1Context, message_array: &[u8], length: usize) {
+pub fn sha1_input(context: &mut Sha1Context, message_array: &[u8], length: usize) {
     if length == 0 {
         return;
     }
 
     // if we go to c standard if(int) is considered anything that not 0 is true and 0 is false
     // correct me on this one
-    if context.Computed != 0 || context.Corrupted != 0{
-        context.Corrupted = 1;
+    if context.computed != 0 || context.corrupted != 0{
+        context.corrupted = 1;
         return;
     }
 
     for &byte in message_array.iter().take(length) {
-        context.Message_Block[context.Message_Block_Index as usize] = byte;
+        context.message_block[context.message_block_index as usize] = byte;
 
-        context.Length_Low = context.Length_Low.wrapping_add(8);
-        context.Length_Low &= 0xFFFFFFFF; // Force it to 32 bits
-        if context.Length_Low == 0 {
-            context.Length_High = context.Length_High.wrapping_add(1);
-            context.Length_High &= 0xFFFFFFFF; // Force it to 32 bits
-            if context.Length_High == 0 {
+        context.length_low = context.length_low.wrapping_add(8);
+        context.length_low &= 0xFFFFFFFF; // Force it to 32 bits
+        if context.length_low == 0 {
+            context.length_high = context.length_high.wrapping_add(1);
+            context.length_high &= 0xFFFFFFFF; // Force it to 32 bits
+            if context.length_high == 0 {
                 // Message is too long
-                context.Corrupted = 1;
+                context.corrupted = 1;
             }
         }
 
-        context.Message_Block_Index += 1;
-        if context.Message_Block_Index == 64 {
-            SHA1ProcessMessageBlock(context);
+        context.message_block_index =  context.message_block_index + 1;
+
+        if context.message_block_index == 64 {
+            sha1_process_message_block(context);
         }
     }
 }
 
-fn SHA1ProcessMessageBlock(context: &mut SHA1Context) {
+fn sha1_process_message_block(context: &mut Sha1Context) {
     const K: [u32; 4] = [0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xCA62C1D6];
-    let mut t: usize;
+    let t: usize;
     let mut temp: u32;
     let mut W: [u32; 80] = [0; 80];
     let mut A: u32;
@@ -4003,21 +4007,21 @@ fn SHA1ProcessMessageBlock(context: &mut SHA1Context) {
     let mut E: u32;
 
     for t in 0..16 {
-        W[t] = (context.Message_Block[t * 4] as u32) << 24
-            | (context.Message_Block[t * 4 + 1] as u32) << 16
-            | (context.Message_Block[t * 4 + 2] as u32) << 8
-            | (context.Message_Block[t * 4 + 3] as u32);
+        W[t] = (context.message_block[t * 4] as u32) << 24
+            | (context.message_block[t * 4 + 1] as u32) << 16
+            | (context.message_block[t * 4 + 2] as u32) << 8
+            | (context.message_block[t * 4 + 3] as u32);
     }
 
     for t in 16..80 {
         W[t] = sha1_circular_shift(1, W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16]);
     }
 
-    A = context.Message_Digest[0];
-    B = context.Message_Digest[1];
-    C = context.Message_Digest[2];
-    D = context.Message_Digest[3];
-    E = context.Message_Digest[4];
+    A = context.message_digest[0];
+    B = context.message_digest[1];
+    C = context.message_digest[2];
+    D = context.message_digest[3];
+    E = context.message_digest[4];
 
     for t in 0..20 {
         temp = sha1_circular_shift(5, A) + ((B & C) | ((!B) & D)) + E + W[t] + K[0];
@@ -4059,60 +4063,60 @@ fn SHA1ProcessMessageBlock(context: &mut SHA1Context) {
         A = temp;
     }
 
-    context.Message_Digest[0] = (context.Message_Digest[0] + A) & 0xFFFFFFFF;
-    context.Message_Digest[1] = (context.Message_Digest[1] + B) & 0xFFFFFFFF;
-    context.Message_Digest[2] = (context.Message_Digest[2] + C) & 0xFFFFFFFF;
-    context.Message_Digest[3] = (context.Message_Digest[3] + D) & 0xFFFFFFFF;
-    context.Message_Digest[4] = (context.Message_Digest[4] + E) & 0xFFFFFFFF;
-    context.Message_Block_Index = 0;
+    context.message_digest[0] = (context.message_digest[0] + A) & 0xFFFFFFFF;
+    context.message_digest[1] = (context.message_digest[1] + B) & 0xFFFFFFFF;
+    context.message_digest[2] = (context.message_digest[2] + C) & 0xFFFFFFFF;
+    context.message_digest[3] = (context.message_digest[3] + D) & 0xFFFFFFFF;
+    context.message_digest[4] = (context.message_digest[4] + E) & 0xFFFFFFFF;
+    context.message_block_index = 0;
 }
 
-fn sha1_pad_message(context: &mut SHA1Context) {
+fn sha1_pad_message(context: &mut Sha1Context) {
     /*
      *  Check to see if the current message block is too small to hold
      *  the initial padding bits and length.  If so, we will pad the
      *  block, process it, and then continue padding into a second
      *  block.
      */
-    if context.Message_Block_Index > 55 {
-        context.Message_Block[context.Message_Block_Index as usize] = 0x80;
-        context.Message_Block_Index += 1;
-        while context.Message_Block_Index < 64 {
-            context.Message_Block[context.Message_Block_Index as usize] = 0;
-            context.Message_Block_Index += 1;
+    if context.message_block_index > 55 {
+        context.message_block[context.message_block_index as usize] = 0x80;
+        context.message_block_index = context.message_block_index + 1;
+        while context.message_block_index < 64 {
+            context.message_block[context.message_block_index as usize] = 0;
+            context.message_block_index = context.message_block_index + 1;
         }
 
-        SHA1ProcessMessageBlock(context);
+        sha1_process_message_block(context);
 
-        while context.Message_Block_Index < 56 {
-            context.Message_Block[context.Message_Block_Index as usize] = 0;
-            context.Message_Block_Index += 1;
+        while context.message_block_index < 56 {
+            context.message_block[context.message_block_index as usize] = 0;
+            context.message_block_index = context.message_block_index + 1;
         }
     } else {
-        context.Message_Block[context.Message_Block_Index as usize] = 0x80;
-        context.Message_Block_Index += 1;
-        while context.Message_Block_Index < 56 {
-            context.Message_Block[context.Message_Block_Index as usize] = 0;
-            context.Message_Block_Index += 1;
+        context.message_block[context.message_block_index as usize] = 0x80;
+        context.message_block_index = context.message_block_index + 1;
+        while context.message_block_index < 56 {
+            context.message_block[context.message_block_index as usize] = 0;
+            context.message_block_index = context.message_block_index + 1;
         }
     }
 
     /*
      *  Store the message length as the last 8 octets
      */
-    context.Message_Block[56] = (context.Length_High >> 24) as u8;
-    context.Message_Block[57] = (context.Length_High >> 16) as u8;
-    context.Message_Block[58] = (context.Length_High >> 8) as u8;
-    context.Message_Block[59] = context.Length_High as u8;
-    context.Message_Block[60] = (context.Length_Low >> 24) as u8;
-    context.Message_Block[61] = (context.Length_Low >> 16) as u8;
-    context.Message_Block[62] = (context.Length_Low >> 8) as u8;
-    context.Message_Block[63] = context.Length_Low as u8;
+    context.message_block[56] = (context.length_high >> 24) as u8;
+    context.message_block[57] = (context.length_high >> 16) as u8;
+    context.message_block[58] = (context.length_high >> 8) as u8;
+    context.message_block[59] = context.length_high as u8;
+    context.message_block[60] = (context.length_low >> 24) as u8;
+    context.message_block[61] = (context.length_low >> 16) as u8;
+    context.message_block[62] = (context.length_low >> 8) as u8;
+    context.message_block[63] = context.length_low as u8;
 
-    SHA1ProcessMessageBlock(context);
+    sha1_process_message_block(context);
 }
 
-pub fn aes_cmac_forge(ctx: &mut AES_ctx, input: &[u8], length: i32, forge: &mut [u8]) {
+pub fn aes_cmac_forge(ctx: &mut AesCtx, input: &mut [u8], length: i32, forge: &mut [u8]) {
     let mut X: [u8; 16] = [0; 16];
     let mut Y: [u8; 16] = [0; 16];
     let mut M_last: [u8; 16] = [0; 16];

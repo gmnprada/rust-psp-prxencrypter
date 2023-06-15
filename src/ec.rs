@@ -11,8 +11,9 @@
 // need for ecdsa implementation that i rarely touch on PSP so lets port the available public one
 // need to investigate this elliptic curve later by writing its harness test also
 use std::ptr;
+use crate::bn::*;
 
-struct point {
+struct Point {
     x: [u8; 20],
     y: [u8; 20],
 }
@@ -22,11 +23,9 @@ const ec_a :[u8;20];
 const ec_b :[u8;20];
 const ec_N :[u8;21];
 
-const ec_G : point;  // mon
-const ec_Q : point;  // mon
+const ec_G : Point;  // mon
+const ec_Q : Point;  // mon
 const ec_k :[u8;21];
-
-
 
 fn hex_dump(str: Option<&str>, buf: &[u8], size: usize) {
     if let Some(s) = str {
@@ -85,13 +84,13 @@ fn elt_inv(d: &mut [u8], a: &[u8]) {
     bn_mon_inv(d, &s, ec_p, 20);
 }
 
-fn point_to_mon(p: &mut point) {
+fn point_to_mon(p: &mut Point) {
     bn_to_mon(&mut p.x, ec_p, 20);
     bn_to_mon(&mut p.y, ec_p, 20);
 }
 
 
-fn point_from_mon(p: &mut point) {
+fn point_from_mon(p: &mut Point) {
     bn_from_mon(&mut p.x, ec_p, 20);
     bn_from_mon(&mut p.y, ec_p, 20);
 }
@@ -233,7 +232,7 @@ fn generate_ecdsa(out_r: &mut [u8], out_s: &mut [u8], k: &[u8], hash: &[u8]) {
   let mut R: [u8; 21] = [0; 21];
   let mut S: [u8; 21] = [0; 21];
   let mut minv: [u8; 21] = [0; 21];
-  let mut mG: point = point::default(); // Assuming Point struct is defined
+  let mut mG: Point = Point::default(); // Assuming Point struct is defined
 
   e[0] = 0;
   R[0] = 0;
@@ -280,8 +279,8 @@ fn check_ecdsa(Q: &point, inR: &[u8], inS: &[u8], hash: &[u8]) -> i32 {
   let mut S: [u8; 21] = [0; 21];
   let mut w1: [u8; 21] = [0; 21];
   let mut w2: [u8; 21] = [0; 21];
-  let mut r1: point = point::default(); // Assuming point struct is defined
-  let mut r2: point = point::default(); // Assuming Point struct is defined
+  let mut r1: Point = Point::default(); // Assuming point struct is defined
+  let mut r2: Point = Point::default(); // Assuming Point struct is defined
   let mut rr: [u8; 21] = [0; 21];
 
   e[0] = 0;
@@ -318,7 +317,7 @@ fn check_ecdsa(Q: &point, inR: &[u8], inS: &[u8], hash: &[u8]) -> i32 {
 }
 
 fn ec_priv_to_pub(k: &[u8], Q: &mut [u8]) {
-  let mut ec_temp: point = point::default(); // Assuming Point struct is defined
+  let mut ec_temp: Point = Point::default(); // Assuming Point struct is defined
   bn_to_mon(&k, &ec_N, 21); // Assuming bn_to_mon function is defined
   point_mul(&mut ec_temp, &k, &ec_G); // Assuming point_mul function is defined
   point_from_mon(&mut ec_temp); // Assuming point_from_mon function is defined
@@ -326,92 +325,81 @@ fn ec_priv_to_pub(k: &[u8], Q: &mut [u8]) {
   Q[20..].copy_from_slice(&ec_temp.y);
 }
 
-// Modified from original to support kirk engine use - July 2011
-void ec_pub_mult(u8 *k, u8 *Q)
-{
-  struct point ec_temp;
-  //bn_to_mon(k, ec_N, 21);
-  point_mul(&ec_temp, k, &ec_Q);
-  point_from_mon(&ec_temp);
-  //bn_from_mon(k, ec_N, 21);
-  memcpy(Q,ec_temp.x,20);
-  memcpy(Q+20,ec_temp.y,20);
+fn ec_pub_mult(k: &[u8], Q: &mut [u8]) {
+    let mut ec_temp: Point = Point::default(); // Assuming Point struct is defined
+    point_mul(&mut ec_temp, &k, &ec_Q); // Assuming point_mul function is defined
+    point_from_mon(&mut ec_temp); // Assuming point_from_mon function is defined
+    Q[..20].copy_from_slice(&ec_temp.x);
+    Q[20..].copy_from_slice(&ec_temp.y);
 }
 
+fn ecdsa_set_curve(p: &[u8], a: &[u8], b: &[u8], N: &[u8], Gx: &[u8], Gy: &[u8]) -> i32 {
+    ec_p.copy_from_slice(&p);
+    ec_a.copy_from_slice(&a);
+    ec_b.copy_from_slice(&b);
+    ec_N.copy_from_slice(&N);
 
-// Simplified for use by Kirk Engine - NO LONGER COMPATIABLE WITH ORIGINAL VERSION - July 2011
-int ecdsa_set_curve(u8* p,u8* a,u8* b,u8* N,u8* Gx,u8* Gy)
-{
-	memcpy(ec_p,p,20);
-	memcpy(ec_a,a,20);
-	memcpy(ec_b,b,20);
-	memcpy(ec_N,N,21);
-	
-  bn_to_mon(ec_a, ec_p, 20);
-  bn_to_mon(ec_b, ec_p, 20);
+    bn_to_mon(&mut ec_a, &ec_p, 20); // Assuming bn_to_mon function is defined
+    bn_to_mon(&mut ec_b, &ec_p, 20); // Assuming bn_to_mon function is defined
 
-  memcpy(ec_G.x, Gx, 20);
-  memcpy(ec_G.y, Gy, 20);
-  point_to_mon(&ec_G);
-  
-  return 0;
+    ec_G.x.copy_from_slice(&Gx);
+    ec_G.y.copy_from_slice(&Gy);
+    point_to_mon(&mut ec_G); // Assuming point_to_mon function is defined
+
+    0
 }
 
-void ecdsa_set_pub(u8 *Q)
-{
-  memcpy(ec_Q.x, Q, 20);
-  memcpy(ec_Q.y, Q+20, 20);
-  point_to_mon(&ec_Q);
+fn ecdsa_set_pub(Q: &[u8]) {
+    ec_Q.x.copy_from_slice(&Q[..20]);
+    ec_Q.y.copy_from_slice(&Q[20..]);
+    point_to_mon(&mut ec_Q); // Assuming point_to_mon function is defined
 }
 
-void ecdsa_set_priv(u8 *ink)
-{
-	u8 k[21];
-	k[0]=0;
-	memcpy(k+1,ink,20);
-	bn_reduce(k, ec_N, 21);
-	
-  memcpy(ec_k, k, sizeof ec_k);
+fn ecdsa_set_priv(ink: &[u8]) {
+    let mut k: [u8; 21] = [0; 21];
+    k[0] = 0;
+    k[1..].copy_from_slice(&ink[..20]);
+    bn_reduce(&mut k, &ec_N, 21); // Assuming bn_reduce function is defined
+
+    ec_k.copy_from_slice(&k);
 }
 
-int ecdsa_verify(u8 *hash, u8 *R, u8 *S)
-{
-  return check_ecdsa(&ec_Q, R, S, hash);
+fn ecdsa_verify(hash: &[u8], R: &[u8], S: &[u8]) -> i32 {
+    check_ecdsa(&ec_Q, &R, &S, &hash) // Assuming check_ecdsa function is defined
 }
 
-void ecdsa_sign(u8 *hash, u8 *R, u8 *S)
-{
-  generate_ecdsa(R, S, ec_k, hash);
+fn ecdsa_sign(hash: &[u8], R: &mut [u8], S: &mut [u8]) {
+    generate_ecdsa(&mut R, &mut S, &ec_k, &hash); // Assuming generate_ecdsa function is defined
 }
 
-int point_is_on_curve(u8 *p)
-{
-  u8 s[20], t[20];
-  u8 *x, *y;
+fn point_is_on_curve(p: &[u8]) -> i32 {
+    let mut s: [u8; 20] = [0; 20];
+    let mut t: [u8; 20] = [0; 20];
+    let x = &p[..20];
+    let y = &p[20..];
 
-  x = p;
-  y = p + 20;
+    elt_square(&mut t, &x);
+    elt_mul(&mut s, &t, &x); // s = x^3
 
-  elt_square(t, x);
-  elt_mul(s, t, x);// s = x^3
+    elt_mul(&mut t, &x, &ec_a);
+    elt_add(&mut s, &s, &t); // s = x^3 + a * x
 
-  elt_mul(t, x, ec_a);
-  elt_add(s, s, t); //s = x^3 + a *x
+    elt_add(&mut s, &s, &ec_b); // s = x^3 + a * x + b
 
-  elt_add(s, s, ec_b);//s = x^3 + a *x + b
+    elt_square(&mut t, &y); // t = y^2
+    elt_sub(&mut s, &s, &t); // is s - t = 0?
 
-  elt_square(t, y); //t = y^2
-  elt_sub(s, s, t); // is s - t = 0?
-  hex_dump("S", s, 20);
-  hex_dump("T", t,20);
-  return elt_is_zero(s);
+    hex_dump("S", &s, 20);
+    hex_dump("T", &t, 20);
+
+    elt_is_zero(&s)
 }
 
-void dump_ecc(void) {
-  hex_dump("P", ec_p, 20);
-  hex_dump("a", ec_a, 20);
-  hex_dump("b", ec_b, 20);
-  hex_dump("N", ec_N, 21);
-  hex_dump("Gx", ec_G.x, 20);
-  hex_dump("Gy", ec_G.y, 20);
+fn dump_ecc() {
+    hex_dump("P", &ec_p, 20);
+    hex_dump("a", &ec_a, 20);
+    hex_dump("b", &ec_b, 20);
+    hex_dump("N", &ec_N, 21);
+    hex_dump("Gx", &ec_G.x, 20);
+    hex_dump("Gy", &ec_G.y, 20);
 }
