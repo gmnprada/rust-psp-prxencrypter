@@ -3727,12 +3727,12 @@ pub fn rijndael_encrypt(ctx: &RijndaelCtx, src: &[u8], dst: &mut [u8]) {
     );
 }
 
-pub fn AES_set_key(ctx: &mut AesCtx, key: &[u8], bits: i32) -> i32 {
+pub fn aes_set_key(ctx: &mut AesCtx, key: &[u8], bits: i32) -> i32 {
     let mut ctx: RijndaelCtx = (*ctx).into();
     return rijndael_set_key(&mut ctx, key, bits);
 }
 
-pub fn AES_decrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8]) {
+pub fn aes_decrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8]) {
     return rijndaelDecrypt(
         &ctx.dk,
         ctx.nr,
@@ -3741,7 +3741,7 @@ pub fn AES_decrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8]) {
     );
 }
 
-pub fn AES_encrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8]) {
+pub fn aes_encrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8]) {
     return rijndaelEncrypt(
         &ctx.ek,
         ctx.nr,
@@ -3756,7 +3756,7 @@ pub fn xor_128(a: &[u8], b: &[u8], out: &mut [u8]) {
     }
 }
 
-pub fn AES_cbc_encrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8], size: usize) {
+pub fn aes_cbc_encrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8], size: usize) {
     let mut block_buff = [0u8; 16];
 
     for i in (0..size).step_by(16) {
@@ -3774,20 +3774,20 @@ pub fn AES_cbc_encrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8], size: usize) {
         }
 
         // step 3: encrypt the block -> it lands in block buffer
-        AES_encrypt(ctx, &dst[i..(i + 16)], &mut block_buff);
+        aes_encrypt(ctx, &dst[i..(i + 16)], &mut block_buff);
 
         // step 4: copy back the encrypted block to destination
         dst[i..(i + 16)].copy_from_slice(&block_buff);
     }
 }
 
-pub fn AES_cbc_decrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8], size: usize) {
+pub fn aes_cbc_decrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8], size: usize) {
     let mut block_buff = [0u8; 16];
     let mut block_buff_previous = [0u8; 16];
 
     block_buff.copy_from_slice(&src[..16]);
     block_buff_previous.copy_from_slice(&src[..16]);
-    AES_decrypt(ctx, &src[..16], &mut dst[..16]);
+    aes_decrypt(ctx, &src[..16], &mut dst[..16]);
 
     for i in (16..size).step_by(16) {
         let current_block = &src[i..(i + 16)];
@@ -3795,7 +3795,7 @@ pub fn AES_cbc_decrypt(ctx: &AesCtx, src: &[u8], dst: &mut [u8], size: usize) {
         dst[i..(i + 16)].copy_from_slice(current_block);
 
         let csrc_temp : [u8; 16] = dst[i..(i + 16)].try_into().unwrap();
-        AES_decrypt(ctx,&csrc_temp, &mut dst[i..(i + 16)]);
+        aes_decrypt(ctx,&csrc_temp, &mut dst[i..(i + 16)]);
         
         let csrc_xor_temp : [u8;16] = dst[i..(i + 16)].try_into().unwrap();
         xor_128(
@@ -3823,7 +3823,7 @@ pub fn generate_subkey(ctx: &AesCtx, mut k1: &mut [u8], mut k2: &mut [u8]) {
     let z = [0u8; 16];
     let mut tmp = [0u8; 16];
 
-    AES_encrypt(ctx, &z, &mut l);
+    aes_encrypt(ctx, &z, &mut l);
 
     if l[0] & 0x80 == 0 {
         leftshift_onebit(&mut l, &mut k1);
@@ -3852,7 +3852,7 @@ pub fn padding(lastb: &[u8], pad: &mut [u8], length: usize) {
     }
 }
 
-pub fn AES_CMAC(ctx: &mut AesCtx, input: &[u8], length: usize, mac: &mut [u8]) {
+pub fn aes_cmac(ctx: &mut AesCtx, input: &[u8], length: usize, mac: &mut [u8]) {
     let mut x = [0u8; 16];
     let mut y = [0u8; 16];
     let mut m_last = [0u8; 16];
@@ -3885,11 +3885,11 @@ pub fn AES_CMAC(ctx: &mut AesCtx, input: &[u8], length: usize, mac: &mut [u8]) {
 
     for i in 0..n - 1 {
         xor_128(&x, &input[16 * i..], &mut y);
-        AES_encrypt(ctx, &y, &mut x);
+        aes_encrypt(ctx, &y, &mut x);
     }
 
     xor_128(&x, &m_last, &mut y);
-    AES_encrypt(ctx, &y, &mut x);
+    aes_encrypt(ctx, &y, &mut x);
 
     for i in 0..16 {
         mac[i] = x[i];
@@ -4147,12 +4147,12 @@ pub fn aes_cmac_forge(ctx: &mut AesCtx, input: &mut [u8], length: i32, forge: &m
 
     for i in 0..(n - 1) {
         xor_128(&X, &input[16 * (i as usize)..], &mut Y);
-        AES_encrypt(ctx, &Y, &mut X);
+        aes_encrypt(ctx, &Y, &mut X);
     }
 
     xor_128(&X, &M_last, &mut Y);
 
-    AES_decrypt(ctx, forge, &mut X);
+    aes_decrypt(ctx, forge, &mut X);
     xor_128(&mut X, &Y, forge);
     xor_128(forge, &input[16 * (n as usize - 1)..], &mut Y);
 
