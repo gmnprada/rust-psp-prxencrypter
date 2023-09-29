@@ -336,12 +336,15 @@ fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> 
         return KIRK_INVALID_MODE;
     }
 
-    // do check with kirk_cmd14
-    if(do_check){
-
+    // do check with kirk_cmd10
+    if do_check {
+        let check =  kirk_cmd10(inbuff,size);
+        if check != KIRK_OPERATION_SUCCESS {
+            return check;
+        }
     }
 
-    let mut keys = HeaderKeys {
+    let keys = HeaderKeys {
         aes: [0; 16],
         cmac: [0; 16],
     };
@@ -361,16 +364,11 @@ fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> 
     }
 
     let mut k1 = AesCtx::new();
-
     aes_set_key(&mut k1, &keys.aes, 128);
-    unsafe {
-        let data_ptr = inbuff
-            .as_ptr()
-            .add(size_of::<KirkCmd1Header>() + header.data_offset as usize);
-    }
-
+    
     let dataptr = size_of::<KirkCmd1Header>() + header.data_offset as usize;
     aes_cbc_decrypt(&k1, &inbuff[..dataptr], outbuff, header.data_size as usize);
+
     return KIRK_OPERATION_SUCCESS;
 }
 
