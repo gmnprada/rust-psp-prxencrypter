@@ -9,6 +9,8 @@ use std::convert::TryFrom;
 use std::mem::size_of;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
+use lazy_static::lazy_static;
+
 
 const KIRK_OPERATION_SUCCESS: i32 = 0;
 const KIRK_NOT_ENABLED: i32 = 1;
@@ -38,7 +40,7 @@ pub struct KirkAes128cbcHeader {
 }
 
 impl KirkAes128cbcHeader {
-    fn to_le_bytes(self) -> [u8;20] {
+    fn to_bytes(self) -> [u8;20] {
         let mut buf = [0u8; 20];
         buf[0..=3].copy_from_slice(&self.mode.to_le_bytes());
         buf[4..=7].copy_from_slice(&self.unk_4.to_le_bytes());
@@ -49,12 +51,12 @@ impl KirkAes128cbcHeader {
     }
 }
 
-#[repr(C, packed)]
-pub struct KIRK_CMD1_HEADER {
-    pub AES_key: [u8; 16],          //0
-    pub CMAC_key: [u8; 16],         //10
-    pub CMAC_header_hash: [u8; 16], //20
-    pub CMAC_data_hash: [u8; 16],   //30
+#[repr(C,packed)]
+pub struct KirkCmd1Header {
+    pub aes_key: [u8; 16],          //0
+    pub cmac_key: [u8; 16],         //10
+    pub cmac_header_hash: [u8; 16], //20
+    pub cmac_data_hash: [u8; 16],   //30
     pub unused: [u8; 32],           //40
     pub mode: u32,                  //60
     pub unk3: [u8; 12],             //64
@@ -62,10 +64,30 @@ pub struct KIRK_CMD1_HEADER {
     pub data_offset: u32,           //74
     pub unk4: [u8; 8],              //78
     pub unk5: [u8; 16],             //80
-} //0x90
+}                                   //0x90
 
-#[repr(C)]
-pub struct KIRK_SHA1_HEADER {
+impl KirkCmd1Header {
+    fn to_bytes(self) -> [u8; size_of::<Self>()] {
+        let mut bytes: [u8; 144] = [0; size_of::<Self>()];
+
+        bytes[0..15].copy_from_slice(&self.aes_key);
+        bytes[15..31].copy_from_slice(&self.cmac_key);
+        bytes[31..47].copy_from_slice(&self.cmac_header_hash);
+        bytes[47..63].copy_from_slice(&self.cmac_data_hash);
+        bytes[63..95].copy_from_slice(&self.unused);
+        bytes[95..=99].copy_from_slice(&self.mode.to_le_bytes());
+        bytes[99..111].copy_from_slice(&self.unk3);
+        bytes[111..115].copy_from_slice(&self.data_size.to_le_bytes());
+        bytes[115..119].copy_from_slice(&self.data_offset.to_le_bytes());
+        bytes[119..127].copy_from_slice(&self.unk4);
+        bytes[127..143].copy_from_slice(&self.unk5);
+
+        bytes
+    }
+}
+
+#[repr(C, packed)]
+pub struct KirkSha1Header {
     data_size: u32, // 0
 }
 
@@ -163,21 +185,51 @@ const KIRK7_KEY64: [u8; 16] = [
 
 // ------------------------- INTERNAL STUFF -------------------------
 
+#[derive (Clone, Copy,Debug,Default)]
 pub struct HeaderKeys {
     aes: [u8; 16],
     cmac: [u8; 16],
 }
 
-static mut FUSE_ID: [u8; 16] = [0; 16]; // Emulate FUSEID
+impl HeaderKeys {
+    fn to_bytes(self) -> [u8;size_of::<Self>()] {
+        let mut bytes: [u8; 32] = [0; size_of::<Self>()];
+        //TODO make the slice from self to bytes
+        bytes
+    }
+}
 
-static mut AES_KIRK1: AesCtx = AesCtx::new(); // global
-
-static mut IS_KIRK_INITIALIZED: bool = false; // "init" emulation
+// Static Global Emulate Fuse ID Refrence
+lazy_static!{
+    static ref FUSE_ID: [u8; 16] = [0; 16];
+    static ref AES_KIRK1: AesCtx = AesCtx::new();
+    static ref IS_KIRK_INITIALIZED : bool = false; 
+} 
 
 // Helper Function 
+const INVALID_ERROR : [u8;16] = [ 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
 fn kirk_4_7_get_key(key_type:&u8) -> [u8; 16]{
     match key_type {
         0x03 => KIRK7_KEY03,
+        0x04 => KIRK7_KEY04,
+		0x05 => KIRK7_KEY05,
+		0x0C => KIRK7_KEY0C,
+		0x0D => KIRK7_KEY0D,
+		0x0E => KIRK7_KEY0E,
+		0x0F => KIRK7_KEY0F,
+		0x10 => KIRK7_KEY10,
+		0x11 => KIRK7_KEY11,
+		0x12 => KIRK7_KEY12,
+		0x38 => KIRK7_KEY38,
+		0x39 => KIRK7_KEY39,
+		0x3A => KIRK7_KEY3A,
+		0x4B => KIRK7_KEY4B,
+		0x53 => KIRK7_KEY53,
+		0x57 => KIRK7_KEY57,
+		0x5D => KIRK7_KEY5D,
+		0x63 => KIRK7_KEY63,
+		0x64 => KIRK7_KEY64,
+        _ => INVALID_ERROR
     }
 }
 
@@ -188,14 +240,11 @@ fn kirk_4_7_get_key(key_type:&u8) -> [u8; 16]{
 // we can remove unsafe later if can be moved into safe operation
 pub fn kirk_cmd0(outbuff: &mut [u8], inbuff: &[u8], size: usize, generate_trash: bool) -> i32 {
 
-    unsafe{
-        if IS_KIRK_INITIALIZED == false {
-            return KIRK_NOT_INITIALIZED;
-        }
+    if *IS_KIRK_INITIALIZED == false {
+        return KIRK_NOT_INITIALIZED;
     }
-
-
-    let header = outbuff.as_ptr() as *mut KIRK_CMD1_HEADER;
+    
+    let header = outbuff.as_ptr() as *mut KirkCmd1Header;
 
     outbuff[..size].copy_from_slice(inbuff);
 
@@ -211,7 +260,7 @@ pub fn kirk_cmd0(outbuff: &mut [u8], inbuff: &[u8], size: usize, generate_trash:
     if generate_trash {
         unsafe {
             kirk_cmd14(
-                &mut outbuff[size_of::<KIRK_CMD1_HEADER>()..],
+                &mut outbuff[size_of::<KirkCmd1Header>()..],
                 (*header).data_offset as usize,
             );
         }
@@ -230,13 +279,15 @@ pub fn kirk_cmd0(outbuff: &mut [u8], inbuff: &[u8], size: usize, generate_trash:
     //ENCRYPT DATA
     //This one is filled with 0x00 bytes
     let mut k1: AesCtx = AesCtx::new();
+
+    // set key here!
     aes_set_key(&mut k1, &keys.aes, 128);
 
     unsafe {
         aes_cbc_encrypt(
             &k1,
-            &inbuff[size_of::<KIRK_CMD1_HEADER>() + (*header).data_offset as usize..],
-            &mut outbuff[size_of::<KIRK_CMD1_HEADER>() + (*header).data_offset as usize..],
+            &inbuff[size_of::<KirkCmd1Header>() + (*header).data_offset as usize..],
+            &mut outbuff[size_of::<KirkCmd1Header>() + (*header).data_offset as usize..],
             chk_size.try_into().unwrap(),
         );
     }
@@ -264,9 +315,9 @@ pub fn kirk_cmd0(outbuff: &mut [u8], inbuff: &[u8], size: usize, generate_trash:
         &mut cmac_data_hash
         );
         (*header)
-            .CMAC_header_hash
+            .cmac_header_hash
             .copy_from_slice(&cmac_header_hash);
-        (*header).CMAC_data_hash.copy_from_slice(&cmac_data_hash);
+        (*header).cmac_data_hash.copy_from_slice(&cmac_data_hash);
     }
 
     //ENCRYPT KEYS
@@ -275,14 +326,12 @@ pub fn kirk_cmd0(outbuff: &mut [u8], inbuff: &[u8], size: usize, generate_trash:
 }
 
 fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> i32 {
-    unsafe{
-        if IS_KIRK_INITIALIZED == false {
-            return KIRK_NOT_INITIALIZED;
-        }
+
+    if *IS_KIRK_INITIALIZED == false {
+        return KIRK_NOT_INITIALIZED;
     }
 
-
-    let header = unsafe { &*(inbuff.as_ptr() as *const KIRK_CMD1_HEADER) };
+    let header = unsafe { &*(inbuff.as_ptr() as *const KirkCmd1Header) };
     if header.mode != KIRK_MODE_CMD1 {
         return KIRK_INVALID_MODE;
     }
@@ -297,14 +346,12 @@ fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> 
         cmac: [0; 16],
     };
 
-    unsafe {
-        aes_cbc_decrypt(
-            &AES_KIRK1,
-            inbuff,
-            keys as _  as &mut [u8],
-            16 * 2,
-        );
-    }
+    aes_cbc_decrypt(
+        &AES_KIRK1,
+        inbuff,
+        &mut keys.to_bytes(),
+        16 * 2,
+    );
 
     if do_check {
         let ret = kirk_cmd10(inbuff, size);
@@ -319,10 +366,10 @@ fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> 
     unsafe {
         let data_ptr = inbuff
             .as_ptr()
-            .add(size_of::<KIRK_CMD1_HEADER>() + header.data_offset as usize);
+            .add(size_of::<KirkCmd1Header>() + header.data_offset as usize);
     }
 
-    let dataptr = size_of::<KIRK_CMD1_HEADER>() + header.data_offset as usize;
+    let dataptr = size_of::<KirkCmd1Header>() + header.data_offset as usize;
     aes_cbc_decrypt(&k1, &inbuff[..dataptr], outbuff, header.data_size as usize);
     return KIRK_OPERATION_SUCCESS;
 }
