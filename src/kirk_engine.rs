@@ -5,6 +5,7 @@
 
 use crate::crypto::{AesCtx,Sha1Context, aes_set_key, aes_cbc_encrypt,aes_cbc_decrypt,aes_cmac};
 use rand::prelude::*;
+use std::convert::TryFrom;
 use std::mem::size_of;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -27,10 +28,8 @@ const KIRK_INVALID_SEED_CODE: i32 = 0xE;
 const KIRK_INVALID_SIZE: i32 = 0xF;
 const KIRK_DATA_SIZE_ZERO: i32 = 0x10;
 
-// 
-
-#[repr(C)]
-pub struct KIRK_AES128CBC_HEADER {
+#[repr(C, packed)]
+pub struct KirkAes128cbcHeader {
     mode: i32,
     unk_4: i32,
     unk_8: i32,
@@ -38,7 +37,19 @@ pub struct KIRK_AES128CBC_HEADER {
     data_size: i32,
 }
 
-#[repr(C)]
+impl KirkAes128cbcHeader {
+    fn to_le_bytes(self) -> [u8;20] {
+        let mut buf = [0u8; 20];
+        buf[0..=3].copy_from_slice(&self.mode.to_le_bytes());
+        buf[4..=7].copy_from_slice(&self.unk_4.to_le_bytes());
+        buf[8..=11].copy_from_slice(&self.unk_8.to_le_bytes());
+        buf[12..=15].copy_from_slice(&self.keyseed.to_le_bytes());
+        buf[16..=19].copy_from_slice(&self.data_size.to_le_bytes());
+        buf
+    }
+}
+
+#[repr(C, packed)]
 pub struct KIRK_CMD1_HEADER {
     pub AES_key: [u8; 16],          //0
     pub CMAC_key: [u8; 16],         //10
@@ -133,7 +144,7 @@ const KIRK7_KEY3A: [u8; 16] = [
 ];
 const KIRK7_KEY4B: [u8; 16] = [
     0x0C, 0xFD, 0x67, 0x9A, 0xF9, 0xB4, 0x72, 0x4F, 0xD7, 0x8D, 0xD6, 0xE9, 0x96, 0x42, 0x28, 0x8B,
-]; //1.xx game eboot.bin
+];
 const KIRK7_KEY53: [u8; 16] = [
     0xAF, 0xFE, 0x8E, 0xB1, 0x3D, 0xD1, 0x7E, 0xD8, 0x0A, 0x61, 0x24, 0x1C, 0x95, 0x92, 0x56, 0xB6,
 ];
@@ -290,7 +301,7 @@ fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> 
         aes_cbc_decrypt(
             &AES_KIRK1,
             inbuff,
-            keys as _ as &mut [u8],
+            keys as _  as &mut [u8],
             16 * 2,
         );
     }
@@ -328,6 +339,10 @@ fn kirk_cmd4(outbuff: &mut [u8], inbuff: &[u8], size: usize) -> i32 {
 
 fn kirk_cmd7(outbuff: &mut [u8], inbuff: &[u8], size: usize) -> i32 {
    0
+}
+
+fn kirk_cmd10(inbuff: &[u8], size: usize)-> i32{
+    0
 }
 
 fn kirk_cmd11(outbuff: &mut [u8], inbuff: &[u8]) -> i32 {
