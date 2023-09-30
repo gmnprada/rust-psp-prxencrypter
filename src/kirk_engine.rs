@@ -31,7 +31,7 @@ const KIRK_INVALID_SIZE: i32 = 0xF;
 const KIRK_DATA_SIZE_ZERO: i32 = 0x10;
 
 #[repr(C, packed)]
-pub struct KirkAes128cbcHeader {
+pub struct  KirkAes128cbcHeader {
     mode: i32,
     unk_4: i32,
     unk_8: i32,
@@ -208,7 +208,7 @@ lazy_static!{
 
 // Helper Function 
 const INVALID_ERROR : [u8;16] = [ 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-fn kirk_4_7_get_key(key_type:&u8) -> [u8; 16]{
+fn kirk_4_7_get_key(key_type:i32) -> [u8; 16]{
     match key_type {
         0x03 => KIRK7_KEY03,
         0x04 => KIRK7_KEY04,
@@ -376,7 +376,28 @@ fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> 
 // kirk_CMD3? // todo
 
 fn kirk_cmd4(outbuff: &mut [u8], inbuff: &[u8], size: usize) -> i32 {
-   0
+    
+    if *IS_KIRK_INITIALIZED == false { return KIRK_NOT_INITIALIZED;}
+
+
+    let header = unsafe { &*(inbuff.as_ptr() as *const KirkAes128cbcHeader) };
+
+    if header.mode != KIRK_MODE_ENCRYPT_CBC as i32 {return KIRK_INVALID_MODE}
+
+    if header.data_size == 0 { return KIRK_DATA_SIZE_ZERO}
+ 
+    let key = kirk_4_7_get_key(header.keyseed);
+    if key == INVALID_ERROR { return KIRK_INVALID_SIZE};
+
+    let mut ctx = AesCtx::new();
+
+    aes_set_key(&mut ctx, &key, 128);
+
+    // grab the + in c code to point into inbuf data
+    let sizeptr = size_of::<KirkAes128cbcHeader>();
+    aes_cbc_decrypt(&ctx, &inbuff[..sizeptr], outbuff, size);
+
+    KIRK_OPERATION_SUCCESS
 }
 
 // kirk cmd5 ? todo its a guessing works after all
