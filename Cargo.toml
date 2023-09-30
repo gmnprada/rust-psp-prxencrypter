@@ -1,11 +1,22 @@
 [package]
-name = "rpsp-prx-encrypter"
-authors = ["gmnp"]
-version = "0.1.0"
+name = "rust-psp-prxencrypter"
+authors = ["gmnprada"]
+version = "0.1.2"
 edition = "2021"
 
 [dependencies]
 clap = "4.0.19"
-deflate = "1.0.0"
 lazy_static = "1.4.0"
 rand = "0.8.5"
+
+[[bin]]
+name = "rsprxencrypter"
+path = "src/main.rs"
+
+[lib]
+name = "rspspkirk"
+path = "src/kirk_engine.rs"
+
+[lib]
+name = "rspspcrypto"
+path = "src/crypto.rs"
