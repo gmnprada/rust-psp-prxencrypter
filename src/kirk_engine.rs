@@ -4,12 +4,11 @@
 // if you find compiler error a help or pr will be good
 
 use crate::crypto::{AesCtx,Sha1Context, aes_set_key, aes_cbc_encrypt,aes_cbc_decrypt,aes_cmac};
-use rand::prelude::*;
-use std::convert::TryFrom;
-use std::mem::size_of;
-use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
+use std::{mem::size_of, time::Duration};
 use lazy_static::lazy_static;
+use std::sync::Mutex;
+use rand::{Rng, SeedableRng, rngs::StdRng};
+use std::time::SystemTime;
 
 
 const KIRK_OPERATION_SUCCESS: i32 = 0;
@@ -202,8 +201,9 @@ impl HeaderKeys {
 // Static Global Emulate Fuse ID Refrence
 lazy_static!{
     static ref FUSE_ID: [u8; 16] = [0; 16];
-    static ref AES_KIRK1: AesCtx = AesCtx::new();
+    static ref AES_KIRK1: Mutex<AesCtx> = Mutex::new(AesCtx::new());
     static ref IS_KIRK_INITIALIZED : bool = false; 
+    static ref RNG_SEED : Mutex<StdRng> = Mutex::new(StdRng::seed_from_u64(0));
 } 
 
 // Helper Function 
@@ -235,6 +235,7 @@ fn kirk_4_7_get_key(key_type:i32) -> [u8; 16]{
 
 // ------------------------- INTERNAL STUFF END -------------------------
 
+/// Super-Duper decryption (no inverse)
 // need to reimplement the c code into rust carefully cause of data types , alignment , padding and pointer
 // done cureated by hand not tested yet
 // we can remove unsafe later if can be moved into safe operation
@@ -320,8 +321,11 @@ pub fn kirk_cmd0(outbuff: &mut [u8], inbuff: &[u8], size: usize, generate_trash:
         (*header).cmac_data_hash.copy_from_slice(&cmac_data_hash);
     }
 
+    //GET GLOBAL REFRENCE
+    let g_aes_kirk1= AES_KIRK1.lock().unwrap().to_owned();
     //ENCRYPT KEYS
-    aes_cbc_encrypt(&AES_KIRK1, &inbuff[..16 * 2], outbuff, 16 * 2);
+    aes_cbc_encrypt(&g_aes_kirk1, &inbuff[..16 * 2], outbuff, 16 * 2);
+
     KIRK_OPERATION_SUCCESS
 }
 
@@ -332,6 +336,7 @@ fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> 
     }
 
     let header = unsafe { &*(inbuff.as_ptr() as *const KirkCmd1Header) };
+
     if header.mode != KIRK_MODE_CMD1 {
         return KIRK_INVALID_MODE;
     }
@@ -339,9 +344,7 @@ fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> 
     // do check with kirk_cmd10
     if do_check {
         let check =  kirk_cmd10(inbuff,size);
-        if check != KIRK_OPERATION_SUCCESS {
-            return check;
-        }
+        if check != KIRK_OPERATION_SUCCESS { return check;}
     }
 
     let keys = HeaderKeys {
@@ -349,8 +352,12 @@ fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> 
         cmac: [0; 16],
     };
 
+    //GET GLOBAL REFRENCE
+    let g_aes_kirk1= AES_KIRK1.lock().unwrap().to_owned();
+
+    //DECRYPT 
     aes_cbc_decrypt(
-        &AES_KIRK1,
+        &g_aes_kirk1,
         inbuff,
         &mut keys.to_bytes(),
         16 * 2,
@@ -375,17 +382,48 @@ fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> 
 // kirk_CMD2? // todo
 // kirk_CMD3? // todo
 
+/// KIRK_CMD_ENCRYPT_STATIC
+/// Encrypt Operation (inverse of cmd 7) (key=static)
 fn kirk_cmd4(outbuff: &mut [u8], inbuff: &[u8], size: usize) -> i32 {
     
-    if *IS_KIRK_INITIALIZED == false { return KIRK_NOT_INITIALIZED;}
-
+    if *IS_KIRK_INITIALIZED == false { return KIRK_NOT_INITIALIZED;};
 
     let header = unsafe { &*(inbuff.as_ptr() as *const KirkAes128cbcHeader) };
 
-    if header.mode != KIRK_MODE_ENCRYPT_CBC as i32 {return KIRK_INVALID_MODE}
+    if header.mode != KIRK_MODE_ENCRYPT_CBC as i32 {return KIRK_INVALID_MODE};
 
-    if header.data_size == 0 { return KIRK_DATA_SIZE_ZERO}
+    if header.data_size == 0 { return KIRK_DATA_SIZE_ZERO};
  
+    let key = kirk_4_7_get_key(header.keyseed);
+    if key == INVALID_ERROR { return KIRK_INVALID_SIZE};
+
+    let mut ctx = AesCtx::new();
+
+    aes_set_key(&mut ctx, &key, 128);
+
+    // grab the + in c code to point into inbuf data
+    let sizeptr = size_of::<KirkAes128cbcHeader>();
+    aes_cbc_encrypt(&ctx, &inbuff[..sizeptr], outbuff, size);
+
+    KIRK_OPERATION_SUCCESS
+}
+
+// kirk cmd5 ? todo its a guessing works after all not exist in c code by bbtgp but devwiki may contains
+
+// kirk cmd6 ? todo its a guessing works after all not exist in c code by bbtgp but devwiki may contains
+
+
+/// KIRK_CMD_DECRYPT_STATIC
+/// Decrypt Operation (inverse of cmd 4) (key=static)
+fn kirk_cmd7(outbuff: &mut [u8], inbuff: &[u8], size: usize) -> i32 {
+
+    if *IS_KIRK_INITIALIZED == false { return KIRK_NOT_INITIALIZED;};
+    
+    let header = unsafe { &*(inbuff.as_ptr() as *const KirkAes128cbcHeader) };
+   
+    if header.mode != KIRK_MODE_DECRYPT_CBC as i32 {return KIRK_INVALID_MODE};
+    if header.data_size == 0 { return KIRK_DATA_SIZE_ZERO};
+    
     let key = kirk_4_7_get_key(header.keyseed);
     if key == INVALID_ERROR { return KIRK_INVALID_SIZE};
 
@@ -397,31 +435,72 @@ fn kirk_cmd4(outbuff: &mut [u8], inbuff: &[u8], size: usize) -> i32 {
     let sizeptr = size_of::<KirkAes128cbcHeader>();
     aes_cbc_decrypt(&ctx, &inbuff[..sizeptr], outbuff, size);
 
+    
     KIRK_OPERATION_SUCCESS
 }
 
-// kirk cmd5 ? todo its a guessing works after all
-// kirk cmd6 ? todo its a guessing works after all
-
-fn kirk_cmd7(outbuff: &mut [u8], inbuff: &[u8], size: usize) -> i32 {
-   0
-}
-
+// todo curate halfy implemented !
 fn kirk_cmd10(inbuff: &[u8], size: usize)-> i32{
-    0
+    if *IS_KIRK_INITIALIZED == false { return KIRK_NOT_INITIALIZED;}
+    KIRK_SIG_CHECK_INVALID
 }
 
+// todo curate halfy implemented !
 fn kirk_cmd11(outbuff: &mut [u8], inbuff: &[u8]) -> i32 {
-    0
+    if *IS_KIRK_INITIALIZED == false { return KIRK_NOT_INITIALIZED;}
+    KIRK_OPERATION_SUCCESS
 }
 
 fn kirk_cmd14(outbuff: &mut [u8], size: usize) -> i32 {
-    0
+    if *IS_KIRK_INITIALIZED == false { return KIRK_NOT_INITIALIZED;}
+
+    // grab init rng seed
+    let mut _g_rng = RNG_SEED.lock().unwrap().to_owned();
+
+    // create tempt i32 array as defined in size
+    let mut temp: Vec<i32> = vec![0; size];
+
+    // generate random number 4 bytes size and write to temp vector
+    for i in temp.iter_mut() {
+        let rand :i32 = _g_rng.gen();
+        *i = rand % 255;
+    }
+
+    // Copy the contents of temp into outbuff element by element
+    for (dest_chunk, src) in outbuff.chunks_mut(4).zip(temp.iter()) {
+        let bytes = src.to_le_bytes();
+        dest_chunk[..bytes.len()].copy_from_slice(&bytes);
+    }
+
+    KIRK_OPERATION_SUCCESS
 }
 
 // TODO kirk_CMD15 this is equivalent to kirk_init on wiki
 fn kirk_cmd15() -> i32 {
-    0
+
+    // get global aes context
+    let mut g_aes_kirk1= AES_KIRK1.lock().unwrap().to_owned();
+
+    // put the key
+    aes_set_key(&mut g_aes_kirk1, &KIRK1_KEY, 128);
+
+    // flag RNG initialized
+    let mut _g_initialized = IS_KIRK_INITIALIZED.to_owned();
+    _g_initialized = true;
+
+    // Initalize the Psuedo random generator seed from system time
+    let d = SystemTime::now()
+    .duration_since(SystemTime::UNIX_EPOCH)
+    .expect("Failed to Configure System Time Duration as Seed");
+
+    // grab rng seed refrences
+    let mut _g_rng = RNG_SEED.lock().unwrap().to_owned();
+
+    // generate seed from system time unix epoch
+    _g_rng = StdRng::seed_from_u64(d.as_secs());
+
+    // RETURN KIRK INITED
+    KIRK_OPERATION_SUCCESS
 }
 
 // https://www.psdevwiki.com/psp/Kirk
