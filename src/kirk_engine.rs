@@ -276,7 +276,6 @@ pub fn kirk_cmd0(outbuff: &mut [u8], inbuff: &[u8], size: usize, generate_trash:
         }
     }
 
-
     //ENCRYPT DATA
     //This one is filled with 0x00 bytes
     let mut k1: AesCtx = AesCtx::new();
@@ -439,9 +438,70 @@ fn kirk_cmd7(outbuff: &mut [u8], inbuff: &[u8], size: usize) -> i32 {
     KIRK_OPERATION_SUCCESS
 }
 
-// todo curate halfy implemented !
+/// Kirk Command 10: AES CMAC verification
+/// This seems to be the AES CMAC verification of CMD1, and takes the same header as CMD1, the only difference is that no decryption is performed.
+/// See command 1 information for details.
+/// It could also possibly verify CMACs for commands 2 & 3, but that is unknown.
 fn kirk_cmd10(inbuff: &[u8], size: usize)-> i32{
     if *IS_KIRK_INITIALIZED == false { return KIRK_NOT_INITIALIZED;}
+
+    let header = unsafe { &*(inbuff.as_ptr() as *const KirkCmd1Header) };
+
+    if !(header.mode == KIRK_MODE_CMD1 || header.mode == KIRK_MODE_CMD2 || header.mode == KIRK_MODE_CMD3) {
+        return KIRK_INVALID_MODE;
+    }
+
+    if header.data_size == 0 { return KIRK_DATA_SIZE_ZERO};
+
+    if(header.mode == KIRK_MODE_CMD1){
+
+        let mut keys = HeaderKeys {
+            aes: [0u8; 16],
+            cmac: [0u8; 16],
+        };
+
+        let mut keys_buffer = [0u8; 32];
+
+        let mut g_aes_kirk1= AES_KIRK1.lock().unwrap().to_owned();
+
+        aes_cbc_decrypt(&mut g_aes_kirk1, inbuff, &mut keys_buffer, size);
+
+        keys.aes.copy_from_slice(&keys_buffer[0..16]);
+        keys.cmac.copy_from_slice(&keys_buffer[16..32]);
+
+        // Initialize new aes context
+        let mut cmac_key = AesCtx::new();
+        aes_set_key(&mut cmac_key, &mut keys.cmac, 128);
+
+
+        let mut cmac_header_hash = [0u8; 16];
+        let mut cmac_data_hash = [0u8;16];
+
+        //fill header data hash
+        aes_cmac(&mut cmac_key, &inbuff[..0x60], 0x30, &mut cmac_header_hash);
+
+        // make sure the data 16 aligned
+        let mut chk_size = header.data_size;
+        if chk_size % 16 != 0 {
+            chk_size += 16 - (chk_size % 16);
+        }
+
+        // fill cmac_data_hash
+        let calc_length = (0x30 + chk_size + header.data_offset) as usize;
+        aes_cmac(&mut cmac_key, &inbuff[..0x60],calc_length, &mut cmac_data_hash);
+
+        if cmac_header_hash != header.cmac_header_hash {
+            println!("Header Hash Invalid");
+            return KIRK_HEADER_HASH_INVALID;
+        }
+
+        if cmac_data_hash != header.cmac_data_hash {
+            println!("data hash invalid");
+            return KIRK_DATA_HASH_INVALID;
+        }
+
+        return KIRK_OPERATION_SUCCESS;
+    }
     KIRK_SIG_CHECK_INVALID
 }
 
