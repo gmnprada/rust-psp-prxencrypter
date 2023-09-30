@@ -14,8 +14,5 @@ looks from minpsp sdk also its point into zlib-1.2.5 so better to port some func
 
  */
 mod crypto;
-mod endian;
 mod kirk_engine;
 mod psp_header;
-mod ec;
-mod bn;
