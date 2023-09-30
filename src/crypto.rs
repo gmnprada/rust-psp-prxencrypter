@@ -96,7 +96,7 @@ const CONST_ZERO: [u8; 16] = [
 ];
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
-#[repr(C)]
+#[repr(C,packed)]
 pub struct RijndaelCtx {
     pub enc_only: i32,
     pub nr: i32,
@@ -131,7 +131,7 @@ impl From<RijndaelCtx> for AesCtx {
 pub type PwuAESContextBuffer = RijndaelCtx;
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
-#[repr(C)]
+#[repr(C,packed)]
 pub struct AesCtx {
     pub enc_only: i32,
     pub nr: i32,
