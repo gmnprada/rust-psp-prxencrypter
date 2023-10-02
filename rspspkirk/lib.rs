@@ -13,6 +13,7 @@ https://github.com/hachque-Emscripten/zlib-1.2.5/tree/master/src
 looks from minpsp sdk also its point into zlib-1.2.5 so better to port some function we actually use from that compression lib to get PrxEncrypter in Pure rust working!
 
  */
-mod crypto;
-mod kirk_engine;
+
+pub mod crypto;
+pub mod kirk_engine;
 mod psp_header;

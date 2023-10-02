@@ -66,10 +66,17 @@
  */
 
 
-// To rust port for rust-prx-encrypter (Signed Eboot To PSP)
-// Ported to rust in 2023 by GMNP not fully tested yet the correctness of the binary produced
+/// The Code Take References from above code that shared on some forums at date
+/// used in rust-prx-encrypter as to Make Signed Eboot.pbp format or Encrypt Prx
+/// Ported to rust in 2023 by GMNPRADA not fully tested yet the correctness of the binary produced
+
 // as many of type casted to usize here which in rust can be 4 bytes or 8 bytes depend on machine its run should we always use 4 bytes and 1bytes length like u32, s32 ,and u8?
 // nothing is clear yet except we already wrote the test by checking the compiled result
+
+// Todo List
+// [] Make it just correct and can be actually working.
+// [] Optimized it for rust by studying on Rust Crypto source crypto implementation
+// [] Make as Much Modern machine CPU code can rust this lib old retro algorithm standard.
 
 use std::convert::TryInto;
 
@@ -96,7 +103,7 @@ const CONST_ZERO: [u8; 16] = [
 ];
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
-#[repr(C,packed)]
+#[repr(C)]
 pub struct RijndaelCtx {
     pub enc_only: i32,
     pub nr: i32,
@@ -131,7 +138,7 @@ impl From<RijndaelCtx> for AesCtx {
 pub type PwuAESContextBuffer = RijndaelCtx;
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
-#[repr(C,packed)]
+#[repr(C)]
 pub struct AesCtx {
     pub enc_only: i32,
     pub nr: i32,
@@ -1984,6 +1991,7 @@ pub fn sha1_circular_shift(bits: u32, word: u32) -> u32 {
     ((word << bits) & 0xFFFFFFFF) | (word >> (32 - bits))
 }
 
+#[repr(C)] 
 pub struct Sha1Context {
     message_digest: [u32; 5], // Message Digest (output)
     length_low: u32,          // Message length in bits
@@ -1994,6 +2002,19 @@ pub struct Sha1Context {
     corrupted: i32,           // Is the message digest corrupted?
 }
 
+impl Default for Sha1Context {
+    fn default() -> Sha1Context {
+        Sha1Context {
+             message_digest: [0x67452301,0xEFCDAB89,0x98BADCFE,0x10325476,0xC3D2E1F0], 
+             length_low: 0, 
+             length_high: 0, 
+             message_block: [0;64], 
+             message_block_index: 0, 
+             computed:  0, 
+             corrupted: 0 
+        }
+    }
+}
 // Function prototypes
 //fn SHA1ProcessMessageBlock(context: &mut SHA1Context);
 //fn SHA1PadMessage(context: &mut SHA1Context);

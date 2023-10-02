@@ -1,0 +1,8 @@
+[package]
+name = "rspspkirk"
+authors = ["gmnprada"]
+version = "0.1.2"
+edition = "2021"
+
+[lib]
+crate-type = ["lib", "staticlib"]
