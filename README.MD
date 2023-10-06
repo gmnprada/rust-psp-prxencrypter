@@ -10,7 +10,7 @@ cargo build
 ## Usage
 WIP Help Me Design the API command in claps?
 ```
-
+rsprxencyrpter -s <pathtofile>
 ```
 
 ## Todo List 

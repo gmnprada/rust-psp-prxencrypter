@@ -1,8 +1,10 @@
 [package]
 name = "rust-psp-prxencrypter"
-authors = ["gmnprada"]
+authors = ["Gde Made Novan Priambhada"]
 version = "0.1.2"
 edition = "2021"
+repository = "https://github.com/madepriambhada/rust-psp-prxencrypter"
+license = "MIT"
 
 [lib]
 name = "rspspkirk"
@@ -10,7 +12,7 @@ path = "rspspkirk/lib.rs"
 crate-type = ["lib", "staticlib"]
 
 [dependencies]
-clap = "4.0.19"
+clap = { version = "4.4.6", features = ["derive"] }
 lazy_static = "1.4.0"
 rand = "0.8.5"
 
