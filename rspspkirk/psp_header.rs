@@ -46,15 +46,7 @@ pub struct Elf32Shdr {
     sh_entsize: u32,
 }
 
-#[repr(C, packed)]
-pub struct PspModuleInfo {
-    attribute: u16,
-    module_ver_lo: u8,
-    module_ver_hi: u8,
-    modname: [u8; 28],
-}
-
-//150
+// Firmware 150 
 #[repr(C, packed)]
 struct PSPHeader2 {
     signature: u32,
@@ -85,10 +77,17 @@ struct PSPHeader2 {
 }
 
 //Unkn
+
+// Total Length size of psp header
+// [1 * 4] + 2 + 2 + 1 + 1 + 28 + 1 + 1 + 4 + 4 + 4 + 4 + 4 + [2 * 4] + [4 * 4] + [4 * 4] + 4 + 1 + 1
+
 #[repr(C, packed)]
-struct PSPHeader {
+#[derive(Debug,Clone, Copy,PartialEq)]
+pub struct PSPHeader {
     signature: [u8; 4],
+    /// Value 1 SCE_MODULE_ATTR_CANT_STOP , SCE_MODULE_ATTR_LOAD, SCE_MODULE_ATTR_START
     mod_attribute: u16,
+    //  Value 1 FLAG_COMPRESS , 2 FLAG_NORELOC (PFX NO RELOC , PRX RELOC)
     comp_attribute: u16,
     module_ver_lo: u8,
     module_ver_hi: u8,
@@ -158,4 +157,14 @@ struct LPPSPHeader {
     scheck: [u8; 0x58],
     sha1_hash: [u8; 0x14],
     key_data4: [u8; 0x10],
+}
+
+/// Attr Value PSPModuleInfo Elf (Binary) , PFX (No Relocate), PRX (Relocated Executable) from YAPSD 
+#[repr(C, packed)]
+#[derive(Debug,Clone, Copy,PartialEq)]
+pub struct PspModuleInfo {
+    attribute : u16,
+    module_ver_lo: u8,
+    module_ver_hi: u8,
+    module_name : [char;28]
 }

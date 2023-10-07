@@ -429,7 +429,7 @@ fn kirk_cmd7(outbuff: &mut [u8], inbuff: &[u8], size: usize) -> i32 {
         return KIRK_NOT_INITIALIZED;
     };
 
-    let header = unsafe { &*(inbuff.as_ptr() as *const KirkAes128cbcHeader) };
+    let header: &KirkAes128cbcHeader = unsafe { &*(inbuff.as_ptr() as *const KirkAes128cbcHeader) };
 
     if header.mode != KIRK_MODE_DECRYPT_CBC as i32 {
         return KIRK_INVALID_MODE;
@@ -532,7 +532,6 @@ fn kirk_cmd10(inbuff: &[u8], size: usize) -> i32 {
     KIRK_SIG_CHECK_INVALID
 }
 
-// todo curate halfy implemented !
 fn kirk_cmd11(outbuff: &mut [u8], inbuff: &[u8], size: usize) -> i32 {
     let inited = IS_KIRK_INITIALIZED.lock().unwrap().to_owned();
     if inited == false {
@@ -663,6 +662,11 @@ fn sce_utils_buffer_copy_with_range(outbuff: &mut [u8],inbuff: &[u8],insize:usiz
     }
 }
 
+
+// TODO add Function KIRK_FORGE
+fn kirk_forge(){
+
+}
 
 
 
