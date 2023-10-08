@@ -289,7 +289,9 @@ fn main() -> io::Result<()> {
     kirk_raw.copy_from_slice(&keys);
     kirk_raw[0x110..0x110 + elf_file_pool.len()].copy_from_slice(&elf_file_pool);
 
-    let command0 = kirk_cmd0(&mut kirk_enc, &kirk_raw, kirk_enc.len(), false);
+    let mut kirk_enc_len = kirk_enc.len();
+
+    let command0 = kirk_cmd0(&mut kirk_enc, &kirk_raw, kirk_enc_len, false);
 
     if command0!= 0{
         panic!("Signer : Can't encrypt elf file ");
@@ -298,7 +300,7 @@ fn main() -> io::Result<()> {
     kirk_enc.copy_from_slice(&kirk_header_bk);
 
     // Forge the kirk
-    let kirk_enc_len = kirk_enc.len();
+    kirk_enc_len = kirk_enc.len();
 
     let forge_kirk = kirk_forge(&mut kirk_enc,kirk_enc_len);
 
