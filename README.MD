@@ -23,5 +23,14 @@ rsprxencyrpter -s <pathtofile>
 - [] Make sign EBOOT.PBP files to run on unmodified PSPs checkmark in rust-psp crates
 - [] easily build , and compile, mantain this tools for the homebrew development project using rust programing lang targeting Playstation Portable mipsel-sony-psp
 
-### 
+### Thanks
 Credits to alls big shoulder who had been in PSP Scenes that share info online , either Hacking , Developing , Create the SDK or share document the hardware, ~ You're Cools
+
+```
+- pspdev wiki
+- bbtgp from the code from wololo forum
+- kirk_engine from google svn
+- the team that write emulator in C++
+- all reverse engineer gods in PSP scene that on homebrew scene
+- and ~PSP to create the closed box
+```

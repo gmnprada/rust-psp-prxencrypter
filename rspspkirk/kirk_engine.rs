@@ -3,13 +3,13 @@
 // some ref of implementation also taken from https://www.psdevwiki.com/psp/Kirk
 use crate::crypto::{
     aes_cbc_decrypt, aes_cbc_encrypt, aes_cmac, aes_set_key, sha1_input, sha1_reset, AesCtx,
-    Sha1Context,
+    Sha1Context, aes_cmac_forge,
 };
 use lazy_static::lazy_static;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::sync::Mutex;
 use std::time::SystemTime;
-use std::{mem::size_of};
+use std::{mem::size_of,cmp::Ordering};
 
 const KIRK_OPERATION_SUCCESS: i32 = 0;
 const KIRK_NOT_ENABLED: i32 = 1;
@@ -187,12 +187,12 @@ const KIRK7_KEY64: [u8; 16] = [
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct HeaderKeys {
-    aes: [u8; 16],
-    cmac: [u8; 16],
+    pub aes: [u8; 16],
+    pub cmac: [u8; 16],
 }
 
 impl HeaderKeys {
-    fn to_bytes(self) -> [u8; size_of::<Self>()] {
+    pub fn to_bytes(self) -> [u8; size_of::<Self>()] {
         let mut bytes: [u8; 32] = [0; size_of::<Self>()];
         //TODO make the slice from self to bytes
         bytes
@@ -333,7 +333,7 @@ pub fn kirk_cmd0(outbuff: &mut [u8], inbuff: &[u8], size: usize, generate_trash:
     KIRK_OPERATION_SUCCESS
 }
 
-fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> i32 {
+pub fn kirk_cmd1(outbuff: &mut [u8], inbuff: &[u8], size: usize, do_check: bool) -> i32 {
     let inited = IS_KIRK_INITIALIZED.lock().unwrap().to_owned();
     if inited == false {
         return KIRK_NOT_INITIALIZED;
@@ -589,7 +589,7 @@ fn kirk_cmd14(outbuff: &mut [u8], size: usize) -> i32 {
 }
 
 // TODO kirk_CMD15 this is equivalent to kirk_init on wiki
-fn kirk_cmd15() -> i32 {
+pub fn kirk_cmd15() -> i32 {
     // get global aes context
     let mut g_aes_kirk1 = AES_KIRK1.lock().unwrap();
 
@@ -638,6 +638,7 @@ fn sce_utils_set_fuse_id(fuse_value: &[u8; 16]) -> i32 {
     0
 }
 
+// Buffering Method used by psp emulated
 fn sce_utils_buffer_copy_with_range(outbuff: &mut [u8],inbuff: &[u8],insize:usize,kirk_cmd : u32) -> i32 {
     match kirk_cmd {
         KIRK_CMD_DECRYPT_PRIVATE => {
@@ -662,11 +663,75 @@ fn sce_utils_buffer_copy_with_range(outbuff: &mut [u8],inbuff: &[u8],insize:usiz
     }
 }
 
-
 // TODO add Function KIRK_FORGE
-fn kirk_forge(){
+pub fn kirk_forge( inbuff: &mut [u8], size: usize) -> i32 {
+    let header = unsafe { &*(inbuff.as_ptr() as *const KirkCmd1Header) };
+    let mut cmac_key: AesCtx = AesCtx::new();
+
+
+    let mut cmac_header_hash = [0u8; 16];
+    let mut cmac_data_hash = [0u8; 16];
+
+    let inited = IS_KIRK_INITIALIZED.lock().unwrap().to_owned();
+
+    if inited == false {
+        return KIRK_NOT_INITIALIZED;
+    }
+
+    if !(header.mode == KIRK_MODE_CMD1
+        || header.mode == KIRK_MODE_CMD2
+        || header.mode == KIRK_MODE_CMD3)
+    {
+        return KIRK_INVALID_MODE;
+    }
+
+    if (header.data_size == 0 || size == 0) {
+        return KIRK_DATA_SIZE_ZERO;
+    }
+
+    if header.mode == KIRK_MODE_CMD1 {
+        let mut keys = HeaderKeys {
+            aes: [0; 16],
+            cmac: [0; 16],
+        };
+
+        let mut g_aes_kirk1 = AES_KIRK1.lock().unwrap();
+
+        aes_cbc_decrypt(&g_aes_kirk1, inbuff, &mut keys.to_bytes(), 16 * 2);
+        aes_set_key(& mut cmac_key,&keys.cmac , 128);
+        aes_cmac(&mut cmac_key, &inbuff[..0x60], 0x30, &mut cmac_header_hash);
+
+
+        let mut chksize  = header.data_size;
+
+        if(chksize % 16 == 0) {
+            chksize += 16 - (chksize % 16);
+            println!("Data Is Valid 16 bits Aligned");
+        }
+
+        let data_length = (0x30 + chksize + header.data_offset) as usize;
+        aes_cmac(&mut cmac_key, &inbuff[..0x60],data_length, &mut cmac_data_hash);
+
+        if cmac_header_hash != header.cmac_header_hash {
+            //println!("Data Hash Invalid");
+        }else{
+            // data hash invalid
+            println!("Data Hash Already Invalid Aborting Operation");
+            return 100;
+        }
+
+        // copy data
+        cmac_data_hash.copy_from_slice(&header.cmac_data_hash);
+        aes_cmac_forge(&mut cmac_key, &mut inbuff[..0x60], data_length as i32, &mut cmac_data_hash);
+        return KIRK_OPERATION_SUCCESS;
+    }
+
+    KIRK_SIG_CHECK_INVALID
 
 }
 
-
-
+pub fn kirk_decrypt_key(keys: &mut [u8], inbuff: &mut [u8]) -> i32 {
+    let g_aes_kirk1 = AES_KIRK1.lock().unwrap();
+    aes_cbc_decrypt(&g_aes_kirk1,inbuff, keys, 32);
+    0
+}

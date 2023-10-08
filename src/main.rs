@@ -2,20 +2,25 @@
 
 extern crate rspspkirk;
 use rspspkirk::psp_header::PSPHeader;
+use rspspkirk::kirk_engine::{kirk_decrypt_key, kirk_cmd0,kirk_cmd15,kirk_forge};
 use rspspkirk::psp_header::PspModuleInfo;
 use clap::Parser;
+use core::panic;
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, Read,Write};
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 
 #[allow(dead_code)]
 fn easter_egg_dead_pool() -> u32 {
     let ade2x: u32 = 0xADEADE;
     let stopinms: u32 = 0xDEADBEEF;
-    let mix = 16 * ade2x ^ stopinms;
+    let mix = 1 * ade2x | stopinms;
     mix.to_le()
 }
 
 // 5 Mega Bytes Application
+#[allow(dead_code)]
 static PSP_HEADER_BIG : [u8;336] =
 [
 	0x7E, 0x50, 0x53, 0x50, 0x00, 0x02, 0x00, 0x00, 0x01, 0x01, 0x22, 0x74, 0x69, 0x66, 0x70, 0x73,
@@ -41,6 +46,7 @@ static PSP_HEADER_BIG : [u8;336] =
 	0x98, 0xB6, 0xC3, 0xB7, 0x59, 0x66, 0x21, 0xA8, 0x65, 0xF6, 0x53, 0xA9, 0x7A, 0x48, 0x17, 0xB6,
 ];
 
+#[allow(dead_code)]
 static KIRK_HEADER_BIG : [u8;272] =
 [
     0x2A, 0x4F, 0x3C, 0x49, 0x8A, 0x73, 0x4E, 0xD1, 0xF4, 0x55, 0x93, 0x0B, 0x9B, 0x69, 0xDC, 0x65,
@@ -117,8 +123,9 @@ struct Args {
     source: String,
 }
 
-fn load_elf(elff: &str) -> io::Result<Vec<u8>> {
-    let mut file = File::open(elff)?;
+// Load Executable File 
+fn load_elf(elf: &str) -> io::Result<Vec<u8>> {
+    let mut file = File::open(elf)?;
     let mut elf = Vec::new();
 
     file.read_to_end(&mut elf)?;
@@ -145,24 +152,49 @@ fn get_kirk_size(key_hdr: &[u8]) -> u32 {
 
 
 /// Make Helper Function
-// Todo FN to check if the file is PRX , PFX , or BIN or Else
-fn isPspPrxFile (header_chunk : [u8;336]) -> bool {
+// Todo FN to check if the file is PRX , PFX , or ELF BIN or Else
+fn is_psp_prx_file (header_chunk : [u8;336]) -> bool {
     true
 }
 
-// Todo FN Check if the file is encyrpted or not 
-fn isFileEncrypted () -> bool{
+// Todo FN Check if the file is encyrpted or not if already encrypted do not encyrpt more
+fn is_file_encrypted () -> bool{
+    let psp_module : PspModuleInfo;    
+    let raw_kirk_header_block : [u8;144];
     true
 }
 
 // Todo FN check if the file is compressed
-fn isFileCompressed()->bool{
+fn is_file_compressed(psp_header: &[u8]) ->bool{
+    if psp_header.get(6..8).map(|arr| u16::from_le_bytes([arr[0], arr[1]])) == Some(1) {
+        return true;
+    }
     false
 }
 
-/// PrxEncrypter had limitation of 336bytes prx size ?
-fn main() {
+fn get_raw_elf_size(psp_header: &[u8]) -> usize {
+    if let Some(slice) = psp_header.get(0x28..0x2C) {
+        return u32::from_le_bytes(slice.try_into().unwrap_or([0; 4])) as usize;
+    }
+    // should not go into this
+    panic!("Elf File size is 0");
+}
 
+fn gzip_compress(dst: &mut [u8], src: &[u8], max_size: usize) -> io::Result<bool> {
+    if src.len() > max_size {
+        return Ok(false); // Input data exceeds the maximum allowed size.
+    }
+
+    let mut encoder = ZlibEncoder::new(dst, Compression::best());
+    encoder.write_all(src)?;
+    match encoder.finish() {
+        Ok(_) => Ok(true), // Compression succeeded.
+        Err(_) => Ok(false), // Compression failed.
+    }
+}
+
+/// PrxEncrypter had limitation of 336bytes prx size ?
+fn main() -> io::Result<()> {
     println!(
         "RustPrxEncrypter by gmnprada!"
     );
@@ -178,8 +210,8 @@ fn main() {
     //     0x150 as u32
     // );
 
-    // original code max prx size buffer 336bytes
-    let max_file_size: u32 = 0x150;
+    // original code max file size buffer 336bytes
+    let max_file_size = 1024 * 1024 * 10;
 
     // La la la ~ , try it if its work or not , dead men tell no tales, brave captains navigate its own ships ~
     // anyway deadpool exist as i am nothing ~
@@ -189,10 +221,106 @@ fn main() {
 
 
     // To Do Parse Args as Buffer and check File
-    let args = Args::parse();
-
+    let args: Args = Args::parse();
     println!("{:?}" ,args);
-    // To Do Parse Module Info from prx file unencrypted 
-    let psp_module : PspModuleInfo;
     
+    let elf_file = load_elf(&args.source).expect("Elf File Load Error");
+
+    let init_kirk = kirk_cmd15();
+    if init_kirk !=0 {
+        panic!("Could not initalize Rs PSP Kirk Library ");
+    }
+
+    let kirk_header = KIRK_HEADER_SMALL.clone(); 
+    let kirk_header_small_size = get_kirk_size(&kirk_header);
+
+    // if File is already encrypted Inform dev this file already encrypted
+    // by teading from psp header types and module info see unused import in rspspkirk/psp_header.rs
+    
+    if is_file_encrypted() {
+
+    }
+    
+    // check deadpool is there or not
+    if elf_file.len() > max_file_size {
+        panic!("You Should Read this code max file size");
+    }
+
+    // dunno if this lenght check needed or not anymore
+    let mut krawSize: u32 = 0;
+    // check for raw kirk header size used can be appended or not
+    if elf_file.len() > (kirk_header_small_size - 336) as usize {
+        let kirk_header_big_size = get_kirk_size(&kirk_header);
+        krawSize = kirk_header_big_size;
+
+        if elf_file.len() > (kirk_header_big_size - 336) as usize {
+            panic!("Elf File is Too BIG")
+        }
+    }
+
+    // To do make options to compress or not 
+    let psp_header = PSP_HEADER_SMALL.clone();
+    let mut elf_file_pool: Vec<u8> = vec![0; max_file_size];
+    if is_file_compressed(&psp_header) {
+        let elf_size_value = get_raw_elf_size(&psp_header);
+        let _compressed = gzip_compress(&mut elf_file_pool, &elf_file, max_file_size);
+
+        if elf_file_pool.len() > elf_size_value {
+            println!("Warn: Compressed File is more big than modified header size in rawKirk file used");
+        }
+
+    }
+
+    let mut kirk_raw: Vec<u8> = vec![0; max_file_size];
+    let mut kirk_enc: Vec<u8> = vec![0; max_file_size];
+    let mut kirk_header_bk = vec![0; 0x90];
+    
+    // copy head to raw 
+    kirk_raw.copy_from_slice(&kirk_header[..0x110]);
+
+    // copy as backup
+    kirk_header_bk.copy_from_slice(&kirk_raw);
+
+    // decrypt keys
+    let mut keys = [0u8;32];
+    let _decrypted = kirk_decrypt_key(&mut keys,&mut kirk_raw );
+
+    //copy decrypted key to raw start
+    kirk_raw.copy_from_slice(&keys);
+    kirk_raw[0x110..0x110 + elf_file_pool.len()].copy_from_slice(&elf_file_pool);
+
+    let command0 = kirk_cmd0(&mut kirk_enc, &kirk_raw, kirk_enc.len(), false);
+
+    if command0!= 0{
+        panic!("Signer : Can't encrypt elf file ");
+    }
+
+    kirk_enc.copy_from_slice(&kirk_header_bk);
+
+    // Forge the kirk
+    let kirk_enc_len = kirk_enc.len();
+
+    let forge_kirk = kirk_forge(&mut kirk_enc,kirk_enc_len);
+
+    if forge_kirk !=0{
+        panic!("Signer : Can't Forge cmac block");
+    }
+
+    let mut out_buff: Vec<u8> = vec![0; max_file_size];
+
+    let psp_header_slice = &psp_header[0..0x150];
+
+    out_buff.extend_from_slice(psp_header_slice);
+
+    let kirk_enc_slice = &kirk_enc[0x110..];
+    out_buff.extend_from_slice(kirk_enc_slice);
+
+    // Todo THE MOST IMPORTANT PART . Check your homebrew successfully signed or not !
+    let output_file = File::create("./data.psp")?;
+    let mut output_writer = io::BufWriter::new(output_file);
+    output_writer.write_all(&out_buff)?;
+    output_writer.flush()?;
+
+    Ok(())
+
 }

@@ -3,6 +3,8 @@ name = "rspspkirk"
 authors = ["gmnprada"]
 version = "0.1.2"
 edition = "2021"
+repository = "https://github.com/madepriambhada/rust-psp-prxencrypter"
+license = "MIT"
 
 [lib]
 crate-type = ["lib", "staticlib"]
