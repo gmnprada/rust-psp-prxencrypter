@@ -1,4 +1,4 @@
-name: rsprxecnypter multi platform build test
+name: rsprxecnypter macos build test
 
 on:
   push:
@@ -11,7 +11,7 @@ env:
 
 jobs:
   build:
-    runs-on: [linux,macos-latest,windows-latest]
+    runs-on: macos-latest
     steps:
     - uses: actions/checkout@v3
     - name: Try Build
